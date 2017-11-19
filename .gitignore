@@ -1,3 +1,5 @@
 Photos/*
 *.bak
 *.tmp
+*~
+*.skb
