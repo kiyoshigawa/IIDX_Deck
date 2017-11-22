@@ -357,7 +357,7 @@ void lm_switch(){
         //increment the color every time a button is pressed.
         lm_current_color++;
         //if the color is larger than there are colors, reset it.
-        if(lm_current_color > num_rainbow_colors){
+        if(lm_current_color >= num_rainbow_colors){
           lm_current_color = 0;
         }
         //finally, set the color here. There is no need for further input in this mode during the main loop function.
@@ -384,7 +384,7 @@ void lm_switch(){
         //increment the color every time a button is pressed.
         lm_current_color++;
         //if the color is larger than there are colors, reset it.
-        if(lm_current_color > num_rainbow_colors){
+        if(lm_current_color >= num_rainbow_colors){
           lm_current_color = 0;
         }
         //finally, set the color here. There is no need for further input in this mode during the main loop function.
@@ -436,7 +436,8 @@ void lighting_control(){
     //Depending on mode, call a specific function for controlling the lighting.
     switch(lighting_mode){
       case LM_SOLID:
-        //this function is controlled entirely when set up. It does not need to refresh at all.
+        //set the color every time anyways, in case the lighting power was interrupted.
+        LED_single_color(rainbow[lm_current_color]);
         break;
         /* re-enable these as they get programmed...
       case LM_WIKI:
@@ -448,7 +449,7 @@ void lighting_control(){
         //set variable for mapping
         uint32_t current_color = rainbow[lm_current_color];
         uint32_t next_color = 0;
-        if(lm_current_color == num_rainbow_colors){
+        if(lm_current_color >= (num_rainbow_colors-1)){
           next_color = rainbow[0];
         }
         else{
@@ -481,7 +482,7 @@ void lighting_control(){
         if(lm_current_transition_position >= LM_SLOW_FADE_FRAMES){
           lm_current_transition_position = 0;
           lm_current_color++;
-          if(lm_current_color == num_rainbow_colors){
+          if(lm_current_color >= num_rainbow_colors){
             lm_current_color = 0;
           }
         }
