@@ -38,8 +38,16 @@ It is designed to run as a joystick, and as such this options must be selected a
 //this is how often the lighting can update when being animated.
 #define LIGHTING_REFRESH_DELAY 15
 
-//this is the number of frames to transition between colors in a slow fade. The lighting runs at approximately 60fps.
+//Variables for the number of frames per animation step. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
 #define LM_SLOW_FADE_FRAMES 900
+#define LM_SLOW_ROTATE_FRAMES 600
+#define LM_MARQUEE_FRAMES 30
+
+//this is the number of LEDs on after a skip on a theatre marquee style animation, or wiki animation
+#define LM_NUM_ON 1
+
+//this is the number of LEDs to skip after an on sequence a theatre marquee style animation, or wiki animations
+#define LM_NUM_SKIP 2
 
 //array of button pins
 int p1_buttons[] = {10, 11, 12, 0, 18, 14, 15, 16, 17};
@@ -105,25 +113,28 @@ uint32_t br3 =   strip.Color(255,   0, 127);
 uint32_t rainbow[] = {red, rg1, rg2, rg3, green, gb1, gb2, gb3, blue, br1, br2, br3};
 int num_rainbow_colors = 12;
 
-
-uint32_t white =          strip.Color(255, 255, 255);
-uint32_t mid_warm_white = strip.Color(187, 127,  70);
-uint32_t off =            strip.Color(  0,   0,   0);
+uint32_t white =        strip.Color(255, 255, 255);
+uint32_t warm_white =   strip.Color(187, 127,  70);
+uint32_t off =          strip.Color(  0,   0,   0);
 
 //lighting mode definitions: Pressing the corresponding button will switch to that mode when in lighting control mode
 
 //Solid lighting in a single color. 
 #define LM_SOLID 1
-//wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
-#define LM_WIKI 2
+//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals
+#define LM_MARQUEE 2
 //slow_fade - will slowly cycle through solid rainbow colors on both wheels
 #define LM_SLOW_FADE 3
-//wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
-#define LM_WIKI_RAINBOW 4
+//wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
+#define LM_WIKI 4
 //slow_rotate - a rainbow pattern will slowly rotate around the disks
 #define LM_SLOW_ROTATE 5
+//wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
+#define LM_WIKI_RAINBOW 6
+//Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
+#define LM_COLOR_PULSE 7
 
-//Off - this will turn off all wiki lighting, but still allow for button lighting of the power is plugged in.
+//Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
 #define LM_OFF 16
 
 //the default mode is set here - it must be one of the above lighting modes
@@ -137,6 +148,8 @@ int direction_left = STOPPED;
 int direction_right = STOPPED;
 unsigned long last_left_move_time = 0;
 unsigned long last_right_move_time = 0;
+bool left_encoder_has_stopped = true;
+bool right_encoder_has_stopped = true;
 
 //global lighting mode variables:
 //default lighting_mode when starting up.
@@ -152,6 +165,7 @@ int lm_current_transition_position = 0;
 
 void setup() {
   Serial.begin(9600);
+  while(!Serial){};
   #ifdef ENCODER_DEBUG
     Serial.println("Two Knobs Encoder Test:");
   #endif
@@ -177,7 +191,6 @@ void setup() {
   Joystick.Zrotate(512);
   Joystick.sliderLeft(512);
   Joystick.sliderRight(512);
-  Joystick.X(-1);
 
   //LED Strip Setup
   strip.begin();
@@ -242,6 +255,11 @@ void encoder_key_press(){
     //release both left up and left down buttons
     Joystick.button(NUM_BUTTONS+1, 0);
     Joystick.button(NUM_BUTTONS+2, 0);
+    if(left_encoder_has_stopped == false){
+      position_left = knobLeft.read();
+      print_encoder_position();
+      left_encoder_has_stopped = true;
+    }
   }
   if(direction_right == POSITIVE){
     //press left up button and release left down button
@@ -257,6 +275,12 @@ void encoder_key_press(){
     //release both left up and left down buttons
     Joystick.button(NUM_BUTTONS+3, 0);
     Joystick.button(NUM_BUTTONS+4, 0);
+    if(right_encoder_has_stopped == false){
+      position_right = knobRight.read();
+      Serial.print("Stopped at: ");
+      print_encoder_position();
+      right_encoder_has_stopped = true;
+    }
   }
 }
 
@@ -272,14 +296,15 @@ void update_encoders(){
     position_left = new_left;
 	  direction_left = POSITIVE;
 	  last_left_move_time = current_time;
+    left_encoder_has_stopped = false;
     print_encoder_position();
-    
   }
   //if going negative direction
   else if (new_left < (position_left-STEP_THRESHOLD) ) {
     position_left = new_left;
     direction_left = NEGATIVE;
     last_left_move_time = current_time;
+    left_encoder_has_stopped = false;
     print_encoder_position();
   }
   //if it has not changed position since MOVE_TIMEOUT, stop sending either up or down
@@ -292,6 +317,7 @@ void update_encoders(){
     position_right = new_right;
     direction_right = POSITIVE;
     last_right_move_time = current_time;
+    right_encoder_has_stopped = false;
     print_encoder_position();
   }
   //if going negative direction
@@ -299,6 +325,7 @@ void update_encoders(){
     position_right = new_right;
     direction_right = NEGATIVE;
     last_right_move_time = current_time;
+    right_encoder_has_stopped = false;
     print_encoder_position();
   }
   //if it has not changed position since MOVE_TIMEOUT, stop sending either up or down
@@ -350,73 +377,125 @@ void lm_switch(){
   if(lm_has_changed){
     switch(lighting_mode){
       case LM_SOLID:
-        #ifdef LIGHTING_DEBUG
-          Serial.println("Lighting Mode is now Solid.");
-        #endif
-        //change variables as needed for the default state of this lighting mode:
-        //increment the color every time a button is pressed.
-        lm_current_color++;
-        //if the color is larger than there are colors, reset it.
-        if(lm_current_color >= num_rainbow_colors){
-          lm_current_color = 0;
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Solid.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          //increment the color every time a button is pressed.
+          lm_current_color++;
+          //if the color is larger than there are colors, reset it.
+          if(lm_current_color >= num_rainbow_colors){
+            lm_current_color = 0;
+          }
+          //finally, set the color here. There is no need for further input in this mode during the main loop function.
+          LED_single_color(rainbow[lm_current_color]);
+          lm_has_changed = false;
         }
-        //finally, set the color here. There is no need for further input in this mode during the main loop function.
-        LED_single_color(rainbow[lm_current_color]);
-        lm_has_changed = false;
         break;
-        /* re-enable these as they get programmed...
-      case LM_WIKI:
-        #ifdef LIGHTING_DEBUG
-          Serial.println("Lighting Mode is now Wiki.");
-        #endif
-        //change variables as needed for the default state of this lighting mode:
 
-        lm_has_changed = false;
-        break;
-        */
       case LM_SLOW_FADE:
-        #ifdef LIGHTING_DEBUG
-          Serial.println("Lighting Mode is now Slow-Fade.");
-        #endif
-        //change variables as needed for the default state of this lighting mode:
-        //simply set the color to a single current color. All other work occurs in the main loop.
-        //change variables as needed for the default state of this lighting mode:
-        //increment the color every time a button is pressed.
-        lm_current_color++;
-        //if the color is larger than there are colors, reset it.
-        if(lm_current_color >= num_rainbow_colors){
-          lm_current_color = 0;
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Slow-Fade.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          //simply set the color to a single current color. All other work occurs in the main loop.
+          //change variables as needed for the default state of this lighting mode:
+          //increment the color every time a button is pressed.
+          lm_current_color++;
+          //if the color is larger than there are colors, reset it.
+          if(lm_current_color >= num_rainbow_colors){
+            lm_current_color = 0;
+          }
+          //reset the transition step variable to 0 so it will start from the new color:
+          lm_current_transition_position = 0;
+          //finally, set the color here. There is no need for further input in this mode during the main loop function.
+          LED_single_color(rainbow[lm_current_color]);
+          lm_has_changed = false;
         }
-        //finally, set the color here. There is no need for further input in this mode during the main loop function.
-        LED_single_color(rainbow[lm_current_color]);
-        lm_has_changed = false;
         break;
-        /*
-      case LM_WIKI_RAINBOW:
-        #ifdef LIGHTING_DEBUG
-          Serial.println("Lighting Mode is now Wiki-Rainbow.");
-        #endif
-        //change variables as needed for the default state of this lighting mode:
 
-        lm_has_changed = false;
-        break;
       case LM_SLOW_ROTATE:
-        #ifdef LIGHTING_DEBUG
-          Serial.println("Lighting Mode is now Slow-Rotate.");
-        #endif
-        //change variables as needed for the default state of this lighting mode:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Slow-Rotate.");
+          #endif
+          //reset the transition step variable to 0 so it will start from the new color:
+          lm_current_transition_position = 0;
+          LED_rainbow(lm_current_transition_position);
+          lm_has_changed = false;
+        }
+        break;
 
-        lm_has_changed = false;
+        /* re-enable these as they get programmed...
+      case LM_COLOR_PULSE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Color-Pulse.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+
+          lm_has_changed = false;
+        }
+        break;
+
+      case LM_MARQUEE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Marquee.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+
+          lm_has_changed = false;
+        }
+        break;
+
+      case LM_WIKI:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Wiki.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+
+          lm_has_changed = false;
+        }
+        break;
+
+      case LM_WIKI_RAINBOW:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Wiki-Rainbow.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+
+          lm_has_changed = false;
+        }
         break;
         */
+
+      case LM_OFF:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now off.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          LED_single_color(off);
+          lm_has_changed = false;
+        }
+        break;
+
       default:
-        lighting_mode = LM_DEFAULT;
-        #ifdef LIGHTING_DEBUG
-          Serial.println("Lighting Mode is now the default.");
-        #endif
-        //change variables as needed for the default state of this lighting mode:
-        
-        //do not set lm_has_changed to false, as it should go through the default option's setup above.
+        {
+          lighting_mode = LM_DEFAULT;
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now the default.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          
+          //do not set lm_has_changed to false, as it should go through the default option's setup above.
+        }
+        break;
     }
   } 
 }
@@ -436,65 +515,101 @@ void lighting_control(){
     //Depending on mode, call a specific function for controlling the lighting.
     switch(lighting_mode){
       case LM_SOLID:
-        //set the color every time anyways, in case the lighting power was interrupted.
-        LED_single_color(rainbow[lm_current_color]);
+        {
+          //set the color every time anyways, in case the lighting power was interrupted.
+          LED_single_color(rainbow[lm_current_color]);
+        }
         break;
-        /* re-enable these as they get programmed...
-      case LM_WIKI:
-        
-        break;
-        */
+
       case LM_SLOW_FADE:
-        //set the color to a step between the current color and the next in the loop, based on how far along the LM_SLOW_FADE_FRAMES position.
-        //set variable for mapping
-        uint32_t current_color = rainbow[lm_current_color];
-        uint32_t next_color = 0;
-        if(lm_current_color >= (num_rainbow_colors-1)){
-          next_color = rainbow[0];
-        }
-        else{
-          next_color = rainbow[lm_current_color+1];
-        }
-        uint8_t current_red = (uint8_t)(current_color >> 16);
-        uint8_t current_green = (uint8_t)(current_color >> 8);
-        uint8_t current_blue = (uint8_t)(current_color);
-        uint8_t next_red = (uint8_t)(next_color >> 16);
-        uint8_t next_green = (uint8_t)(next_color >> 8);
-        uint8_t next_blue = (uint8_t)(next_color);
-        //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-        uint32_t mid_red = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-        uint32_t mid_green = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-        uint32_t mid_blue = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
-        //set the color:
-        LED_single_color(strip.Color(mid_red, mid_green, mid_blue));
-        #ifdef LIGHTING_DEBUG
-          /* only uncomment if needed. Too spammy.
-          Serial.print("Red: ");
-          Serial.println(mid_red);
-          Serial.print("Green: ");
-          Serial.println(mid_green);
-          Serial.print("Blue: ");
-          Serial.println(mid_blue);
-          */
-        #endif
-        //increment frames, jump to the next color if rollover occurs:
-        lm_current_transition_position++;
-        if(lm_current_transition_position >= LM_SLOW_FADE_FRAMES){
-          lm_current_transition_position = 0;
-          lm_current_color++;
-          if(lm_current_color >= num_rainbow_colors){
-            lm_current_color = 0;
+        {
+          //set the color to a step between the current color and the next in the loop, based on how far along the LM_SLOW_FADE_FRAMES position.
+          //set variable for mapping
+          uint32_t current_color = rainbow[lm_current_color];
+          uint32_t next_color = 0;
+          if(lm_current_color >= (num_rainbow_colors-1)){
+            next_color = rainbow[0];
+          }
+          else{
+            next_color = rainbow[lm_current_color+1];
+          }
+          uint8_t current_red = (uint8_t)(current_color >> 16);
+          uint8_t current_green = (uint8_t)(current_color >> 8);
+          uint8_t current_blue = (uint8_t)(current_color);
+          uint8_t next_red = (uint8_t)(next_color >> 16);
+          uint8_t next_green = (uint8_t)(next_color >> 8);
+          uint8_t next_blue = (uint8_t)(next_color);
+          //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+          uint32_t mid_red = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
+          uint32_t mid_green = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
+          uint32_t mid_blue = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          //set the color:
+          LED_single_color(strip.Color(mid_red, mid_green, mid_blue));
+          #ifdef LIGHTING_DEBUG
+            /* only uncomment if needed. Too spammy.
+            Serial.print("Red: ");
+            Serial.println(mid_red);
+            Serial.print("Green: ");
+            Serial.println(mid_green);
+            Serial.print("Blue: ");
+            Serial.println(mid_blue);
+            */
+          #endif
+          //increment frames, jump to the next color if rollover occurs:
+          lm_current_transition_position++;
+          if(lm_current_transition_position >= LM_SLOW_FADE_FRAMES){
+            lm_current_transition_position = 0;
+            lm_current_color++;
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
           }
         }
         break;
-        /*
-      case LM_WIKI_RAINBOW:
-        
-        break;
+
       case LM_SLOW_ROTATE:
+        {
+          //increment frames, jump to the next color if rollover occurs:
+          lm_current_transition_position++;
+          LED_rainbow(lm_current_transition_position);
+          if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
+            lm_current_transition_position = 0;
+          }
+        }
+        break;
+
+        /* re-enable these as they get programmed...
+      case LM_COLOR_PULSE:
+        {
         
+        }
+        break;
+
+      case LM_MARQUEE:
+        {
+        
+        }
+        break;
+
+      case LM_WIKI:
+        {
+        
+        }
+        break;
+
+      case LM_WIKI_RAINBOW:
+        {
+          
+        }
         break;
         */
+
+      case LM_OFF:
+        {
+          //set the color every time anyways, in case the lighting power was interrupted.
+          LED_single_color(off);
+        }
+        break;
     }
   }
 }
@@ -503,6 +618,122 @@ void lighting_control(){
 void LED_single_color(uint32_t color){
   for( int i=0; i<NUM_LEDS; i++){
     strip.setPixelColor(i, color);
+  }
+  strip.show();
+}
+
+//this is a function to set a rainbow pattern around the disks with an offset:
+void LED_rainbow(int offset){
+  //change variables as needed for the default state of this lighting mode:
+  //first need to work out the color of each pixel based on a starting offset of 0.
+  //There wil be LM_SLOW_ROTATE_FRAMES states in the animation.
+  //the rainbow will need to be spread evenly over these LM_SLOW_ROTATE_FRAMES, and then we will
+  //need to offset by offset, which increments by 1 every frame. This will start at position 0.
+
+  //So to start, we will need an offset number which maps which of the positions the num_rainbow_colors 'pure' colors map to.
+  int pure_color_offset = LM_SLOW_ROTATE_FRAMES/num_rainbow_colors;
+  //then we will need an offset which notes which NUM_LEDS/2 positions out of the total fall directly on the LEDs
+  int led_position_offset = LM_SLOW_ROTATE_FRAMES/(NUM_LEDS/2);
+  //With this number we can make note of the positions where LEDs will always be in an array:
+  int led_position_array[NUM_LEDS];
+  led_position_array[0] = 0;
+  for(int i=1; i<(NUM_LEDS); i++){
+    led_position_array[i] = led_position_array[i-1]+led_position_offset;
+  }
+
+  uint32_t double_rainbow[num_rainbow_colors*2];
+  for(int i=0; i<num_rainbow_colors; i++){
+    double_rainbow[i] = rainbow[i];
+  }
+  for(int i=0; i<num_rainbow_colors; i++){
+    double_rainbow[i+num_rainbow_colors] = rainbow[i];
+  }
+  
+  //make an int to track the number of LEDS that have been set.
+  int num_leds_set = 0;
+  //and another to tell the for loop to break when all have been set
+  bool all_leds_set = false;
+
+  //iterate through the colors starting at the starting LED, and looping back when it hits NUM_LEDS/2
+  for(int i=0; i<num_rainbow_colors*2; i++){
+    //establish the current and next color. the next color will need to be color 0 on the final iteration.
+    uint32_t current_color;
+    uint32_t next_color;
+    if(i != (num_rainbow_colors*2-1)){
+      current_color = double_rainbow[i];
+      next_color = double_rainbow[i+1];
+    }
+    else{
+      current_color = double_rainbow[i];
+      next_color = double_rainbow[0];
+    }
+    //break out the RGB values from the 32 bit color for mapping purposes.
+    uint8_t current_red = (uint8_t)(current_color >> 16);
+    uint8_t current_green = (uint8_t)(current_color >> 8);
+    uint8_t current_blue = (uint8_t)(current_color);
+    uint8_t next_red = (uint8_t)(next_color >> 16);
+    uint8_t next_green = (uint8_t)(next_color >> 8);
+    uint8_t next_blue = (uint8_t)(next_color);
+    
+    //set the current and next color positions. If either is greater than LM_SLOW_ROTATE_FRAMES, it will need to be fixed before setting a color.
+    int current_color_position = offset + (i*pure_color_offset);
+    int next_color_position = offset + (i*pure_color_offset) + pure_color_offset;
+
+    //iterate through all LEDs and see which LEDs are between the color positions.
+    for(int led = 0; led < NUM_LEDS; led++){
+      if(led_position_array[led] >= current_color_position && led_position_array[led] < next_color_position){
+        //Should only activate if the LED position is between the current and next LED.
+        //set the led number to be set to a number below NUM_LEDS/2
+        int corrected_led = led;
+        if(led > (NUM_LEDS/2)){
+          corrected_led = led - (NUM_LEDS/2);
+        }
+        //set the colors once the positions are corrected as needed.
+        uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
+        uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
+        uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
+        strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+        strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+        
+        num_leds_set++;
+        //check to see if it's set all of the LEDS. and if so, break from the function
+        if(num_leds_set >= NUM_LEDS/2){
+          all_leds_set = true;
+        }
+        #ifdef LIGHTING_DEBUG
+        Serial.print("i is: ");
+        Serial.print(i);
+        Serial.print(" and led is: ");
+        Serial.print(led);
+        Serial.print(" and current LED position is ");
+        Serial.print(led_position_array[led]);
+        Serial.print(" and current color position is ");
+        Serial.println(current_color_position);
+        #endif
+
+      }
+      if(all_leds_set){
+        break;
+      }
+    }
+    Serial.println(current_color_position);
+    /*
+    //iterate through the LED positions and find the ones that are between the current and next color positions:
+    for(int j=0; j<(NUM_LEDS/2); j++){
+      if(led_position_array[current_led] >= current_color_position && led_position_array[j] <= next_color_position){
+        uint32_t mid_red = map(led_position_array[current_led], current_color_position, next_color_position, current_red, next_red);
+        uint32_t mid_green = map(led_position_array[current_led], current_color_position, next_color_position, current_green, next_green);
+        uint32_t mid_blue = map(led_position_array[current_led], current_color_position, next_color_position, current_blue, next_blue);
+        strip.setPixelColor(j, strip.Color(mid_red, mid_green, mid_blue));
+        strip.setPixelColor(j+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+        current_led++;
+        if(current_led > (NUM_LEDS/2)){
+          current_led = 0;
+        }
+      }
+    }
+    */
+
   }
   strip.show();
 }
