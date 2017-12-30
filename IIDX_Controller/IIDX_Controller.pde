@@ -43,6 +43,9 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_SLOW_ROTATE_FRAMES 600
 #define LM_MARQUEE_FRAMES 30
 
+//this scaling factor allows for smoother transitions around the edges on slow_rotate style animations. The integer math rounding makes abrupt changes otherwise
+#define LM_SLOW_ROTATE_SCALING_FACTOR 1000
+
 //this is the number of LEDs on after a skip on a theatre marquee style animation, or wiki animation
 #define LM_NUM_ON 1
 
@@ -138,7 +141,7 @@ uint32_t off =          strip.Color(  0,   0,   0);
 #define LM_OFF 16
 
 //the default mode is set here - it must be one of the above lighting modes
-#define LM_DEFAULT LM_SLOW_FADE
+#define LM_DEFAULT LM_SLOW_ROTATE
 
 
 //global variables used below
@@ -631,9 +634,9 @@ void LED_rainbow(int offset){
   //need to offset by offset, which increments by 1 every frame. This will start at position 0.
 
   //So to start, we will need an offset number which maps which of the positions the num_rainbow_colors 'pure' colors map to.
-  int pure_color_offset = LM_SLOW_ROTATE_FRAMES/num_rainbow_colors;
+  int pure_color_offset = LM_SLOW_ROTATE_FRAMES*LM_SLOW_ROTATE_SCALING_FACTOR/num_rainbow_colors;
   //then we will need an offset which notes which NUM_LEDS/2 positions out of the total fall directly on the LEDs
-  int led_position_offset = LM_SLOW_ROTATE_FRAMES/(NUM_LEDS/2);
+  int led_position_offset = LM_SLOW_ROTATE_FRAMES*LM_SLOW_ROTATE_SCALING_FACTOR/(NUM_LEDS/2);
   //With this number we can make note of the positions where LEDs will always be in an array:
   int led_position_array[NUM_LEDS];
   led_position_array[0] = 0;
@@ -676,8 +679,8 @@ void LED_rainbow(int offset){
     uint8_t next_blue = (uint8_t)(next_color);
     
     //set the current and next color positions. If either is greater than LM_SLOW_ROTATE_FRAMES, it will need to be fixed before setting a color.
-    int current_color_position = offset + (i*pure_color_offset);
-    int next_color_position = offset + (i*pure_color_offset) + pure_color_offset;
+    int current_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset);
+    int next_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset) + pure_color_offset;
 
     //iterate through all LEDs and see which LEDs are between the color positions.
     for(int led = 0; led < NUM_LEDS; led++){
@@ -697,10 +700,11 @@ void LED_rainbow(int offset){
         
         num_leds_set++;
         //check to see if it's set all of the LEDS. and if so, break from the function
-        if(num_leds_set >= NUM_LEDS/2){
+        if(num_leds_set > NUM_LEDS/2){
           all_leds_set = true;
         }
         #ifdef LIGHTING_DEBUG
+        /* only uncomment if needed. Too spammy.
         Serial.print("i is: ");
         Serial.print(i);
         Serial.print(" and led is: ");
@@ -709,31 +713,14 @@ void LED_rainbow(int offset){
         Serial.print(led_position_array[led]);
         Serial.print(" and current color position is ");
         Serial.println(current_color_position);
+        */
         #endif
-
+        
       }
       if(all_leds_set){
         break;
       }
     }
-    Serial.println(current_color_position);
-    /*
-    //iterate through the LED positions and find the ones that are between the current and next color positions:
-    for(int j=0; j<(NUM_LEDS/2); j++){
-      if(led_position_array[current_led] >= current_color_position && led_position_array[j] <= next_color_position){
-        uint32_t mid_red = map(led_position_array[current_led], current_color_position, next_color_position, current_red, next_red);
-        uint32_t mid_green = map(led_position_array[current_led], current_color_position, next_color_position, current_green, next_green);
-        uint32_t mid_blue = map(led_position_array[current_led], current_color_position, next_color_position, current_blue, next_blue);
-        strip.setPixelColor(j, strip.Color(mid_red, mid_green, mid_blue));
-        strip.setPixelColor(j+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
-        current_led++;
-        if(current_led > (NUM_LEDS/2)){
-          current_led = 0;
-        }
-      }
-    }
-    */
-
   }
   strip.show();
 }
