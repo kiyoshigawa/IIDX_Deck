@@ -16,9 +16,14 @@ It is designed to run as a joystick, and as such this options must be selected a
 #include <Bounce.h>
 #include <Adafruit_NeoPixel.h>
 
+//defines to make the code more readable:
 #define POSITIVE 1
 #define STOPPED 0
 #define NEGATIVE -1
+
+#define BOTH_WIKI 0
+#define P1_WIKI 1
+#define P2_WIKI 2
 
 //number of ms to ignore changes in button state after a change
 #define BOUNCE_TIME 5
@@ -38,7 +43,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 //this is how often the lighting can update when being animated.
 #define LIGHTING_REFRESH_DELAY 15
 
-//Variables for the number of frames per animation step. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
+//Variables for the number of frames per animation. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
 #define LM_SLOW_FADE_FRAMES 900
 #define LM_SLOW_ROTATE_FRAMES 600
 #define LM_MARQUEE_FRAMES 30
@@ -260,6 +265,9 @@ void encoder_key_press(){
     Joystick.button(NUM_BUTTONS+2, 0);
     if(left_encoder_has_stopped == false){
       position_left = knobLeft.read();
+      #ifdef ENCODER_DEBUG
+        Serial.print("Stopped at: ");
+      #endif
       print_encoder_position();
       left_encoder_has_stopped = true;
     }
@@ -280,7 +288,9 @@ void encoder_key_press(){
     Joystick.button(NUM_BUTTONS+4, 0);
     if(right_encoder_has_stopped == false){
       position_right = knobRight.read();
-      Serial.print("Stopped at: ");
+      #ifdef ENCODER_DEBUG
+        Serial.print("Stopped at: ");
+      #endif
       print_encoder_position();
       right_encoder_has_stopped = true;
     }
@@ -426,7 +436,7 @@ void lm_switch(){
           #endif
           //reset the transition step variable to 0 so it will start from the new color:
           lm_current_transition_position = 0;
-          LED_rainbow(lm_current_transition_position);
+          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -574,7 +584,7 @@ void lighting_control(){
         {
           //increment frames, jump to the next color if rollover occurs:
           lm_current_transition_position++;
-          LED_rainbow(lm_current_transition_position);
+          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
           if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
             lm_current_transition_position = 0;
           }
@@ -626,7 +636,7 @@ void LED_single_color(uint32_t color){
 }
 
 //this is a function to set a rainbow pattern around the disks with an offset:
-void LED_rainbow(int offset){
+void LED_rainbow(int offset, int wiki_select){
   //change variables as needed for the default state of this lighting mode:
   //first need to work out the color of each pixel based on a starting offset of 0.
   //There wil be LM_SLOW_ROTATE_FRAMES states in the animation.
@@ -695,8 +705,21 @@ void LED_rainbow(int offset){
         uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
         uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
         uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
-        strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
-        strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+        if(wiki_select == BOTH_WIKI){
+          strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+          strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+        }
+        else if(wiki_select == P1_WIKI){
+          strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+        }
+        else if(wiki_select == P2_WIKI){
+          strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+        }
+        else{
+          #ifdef LIGHTING_DEBUG
+          Serial.println("Fix your call to LED_rainbow() to use BOTH_WIKI, P1_WIKI, or P2_WIKI plsthx.");
+          #endif
+        }
         
         num_leds_set++;
         //check to see if it's set all of the LEDS. and if so, break from the function
