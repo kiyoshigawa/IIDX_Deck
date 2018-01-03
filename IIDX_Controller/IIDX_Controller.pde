@@ -6,7 +6,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 */
 
 //Uncomment ENCODER_DEBUG to get serial feedback on encoder position.
-//#define ENCODER_DEBUG
+#define ENCODER_DEBUG
 //Uncomment KEYPRESS_DEBUG to get feedback on key presses and releases sent
 //#define KEYPRESS_DEBUG
 //Uncomment LIGHTING_DEBUG to get feedback on lighting and LED programs
@@ -24,6 +24,10 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define BOTH_WIKI 0
 #define P1_WIKI 1
 #define P2_WIKI 2
+
+//number of steps in an encoder revolution. Designed using 600 pips/revolutiuon quadrature encoders, so default is 2400.
+//turns out it's skipping pips a fair amount around the rotation, so I just made it go faster than the rotation because I like the look of it.
+#define PIPS_PER_REV 1500
 
 //number of ms to ignore changes in button state after a change
 #define BOUNCE_TIME 5
@@ -45,17 +49,42 @@ It is designed to run as a joystick, and as such this options must be selected a
 
 //Variables for the number of frames per animation. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
 #define LM_SLOW_FADE_FRAMES 900
-#define LM_SLOW_ROTATE_FRAMES 600
+#define LM_SLOW_ROTATE_FRAMES 300
 #define LM_MARQUEE_FRAMES 30
 
 //this scaling factor allows for smoother transitions around the edges on slow_rotate style animations. The integer math rounding makes abrupt changes otherwise
-#define LM_SLOW_ROTATE_SCALING_FACTOR 1000
+#define LM_SLOW_ROTATE_SCALING_FACTOR 3000
 
 //this is the number of LEDs on after a skip on a theatre marquee style animation, or wiki animation
 #define LM_NUM_ON 1
 
 //this is the number of LEDs to skip after an on sequence a theatre marquee style animation, or wiki animations
 #define LM_NUM_SKIP 2
+
+
+
+//lighting mode definitions: Pressing the corresponding button will switch to that mode when in lighting control mode
+
+//Solid lighting in a single color. 
+#define LM_SOLID 1
+//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals
+#define LM_MARQUEE 2
+//slow_fade - will slowly cycle through solid rainbow colors on both wheels
+#define LM_SLOW_FADE 3
+//wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
+#define LM_WIKI 4
+//slow_rotate - a rainbow pattern will slowly rotate around the disks
+#define LM_SLOW_ROTATE 5
+//wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
+#define LM_WIKI_RAINBOW 6
+//Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
+#define LM_COLOR_PULSE 7
+
+//Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
+#define LM_OFF 16
+
+//the default mode is set here - it must be one of the above lighting modes
+#define LM_DEFAULT LM_WIKI_RAINBOW
 
 //array of button pins
 int p1_buttons[] = {10, 11, 12, 0, 18, 14, 15, 16, 17};
@@ -124,30 +153,6 @@ int num_rainbow_colors = 12;
 uint32_t white =        strip.Color(255, 255, 255);
 uint32_t warm_white =   strip.Color(187, 127,  70);
 uint32_t off =          strip.Color(  0,   0,   0);
-
-//lighting mode definitions: Pressing the corresponding button will switch to that mode when in lighting control mode
-
-//Solid lighting in a single color. 
-#define LM_SOLID 1
-//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals
-#define LM_MARQUEE 2
-//slow_fade - will slowly cycle through solid rainbow colors on both wheels
-#define LM_SLOW_FADE 3
-//wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
-#define LM_WIKI 4
-//slow_rotate - a rainbow pattern will slowly rotate around the disks
-#define LM_SLOW_ROTATE 5
-//wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
-#define LM_WIKI_RAINBOW 6
-//Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
-#define LM_COLOR_PULSE 7
-
-//Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
-#define LM_OFF 16
-
-//the default mode is set here - it must be one of the above lighting modes
-#define LM_DEFAULT LM_SLOW_ROTATE
-
 
 //global variables used below
 long position_left  = 0;
@@ -474,11 +479,28 @@ void lm_switch(){
           lm_has_changed = false;
         }
         break;
-
+        */
       case LM_WIKI_RAINBOW:
         {
           #ifdef LIGHTING_DEBUG
             Serial.println("Lighting Mode is now Wiki-Rainbow.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          //first map the wiki position to the frame offset of a typical slow rotate
+          int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
+          int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
+          //then set the wheel to the rainbow color at that offset
+          LED_rainbow(p1_offset, P1_WIKI);
+          LED_rainbow(p2_offset, P2_WIKI);
+          lm_has_changed = false;
+        }
+        break;
+
+        /* re-enable these as they get programmed...
+      case LM_INSERT_NEW_NAME_HERE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now <New Name Here>.");
           #endif
           //change variables as needed for the default state of this lighting mode:
 
@@ -609,8 +631,21 @@ void lighting_control(){
         
         }
         break;
+        */
 
       case LM_WIKI_RAINBOW:
+        {
+          //first map the wiki position to the frame offset of a typical slow rotate
+          int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
+          int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
+          //then set the wheel to the rainbow color at that offset
+          LED_rainbow(p1_offset, P1_WIKI);
+          LED_rainbow(p2_offset, P2_WIKI);
+        }
+        break;
+
+        /*
+      case LM_INSERT_NEW_NAME_HERE:
         {
           
         }
@@ -642,6 +677,11 @@ void LED_rainbow(int offset, int wiki_select){
   //There wil be LM_SLOW_ROTATE_FRAMES states in the animation.
   //the rainbow will need to be spread evenly over these LM_SLOW_ROTATE_FRAMES, and then we will
   //need to offset by offset, which increments by 1 every frame. This will start at position 0.
+
+  //will need to take into account negative offsets for wiki animations. This can be done by inverting the offset at the start:
+  if(offset <= 0){
+    offset = LM_SLOW_ROTATE_FRAMES+offset;
+  }
 
   //So to start, we will need an offset number which maps which of the positions the num_rainbow_colors 'pure' colors map to.
   int pure_color_offset = LM_SLOW_ROTATE_FRAMES*LM_SLOW_ROTATE_SCALING_FACTOR/num_rainbow_colors;
