@@ -6,7 +6,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 */
 
 //Uncomment ENCODER_DEBUG to get serial feedback on encoder position.
-#define ENCODER_DEBUG
+//#define ENCODER_DEBUG
 //Uncomment KEYPRESS_DEBUG to get feedback on key presses and releases sent
 //#define KEYPRESS_DEBUG
 //Uncomment LIGHTING_DEBUG to get feedback on lighting and LED programs
@@ -50,17 +50,15 @@ It is designed to run as a joystick, and as such this options must be selected a
 //Variables for the number of frames per animation. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
 #define LM_SLOW_FADE_FRAMES 900
 #define LM_SLOW_ROTATE_FRAMES 300
-#define LM_MARQUEE_FRAMES 30
+#define LM_MARQUEE_FRAMES 15
 
 //this scaling factor allows for smoother transitions around the edges on slow_rotate style animations. The integer math rounding makes abrupt changes otherwise
 #define LM_SLOW_ROTATE_SCALING_FACTOR 3000
 
-//this is the number of LEDs on after a skip on a theatre marquee style animation, or wiki animation
+//a couple defines for marquee automatic generation
 #define LM_NUM_ON 1
-
-//this is the number of LEDs to skip after an on sequence a theatre marquee style animation, or wiki animations
-#define LM_NUM_SKIP 2
-
+#define LM_NUM_OFF 4
+#define LM_NUM_ITERATIONS 5
 
 
 //lighting mode definitions: Pressing the corresponding button will switch to that mode when in lighting control mode
@@ -75,13 +73,22 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_WIKI 4
 //slow_rotate - a rainbow pattern will slowly rotate around the disks
 #define LM_SLOW_ROTATE 5
+//#6 will go here
+
 //wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
-#define LM_WIKI_RAINBOW 6
+#define LM_WIKI_RAINBOW 7
+//numbers 8 and 9 will likely be used for speed adjustments in the future
+
 //Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
-#define LM_COLOR_PULSE 7
+#define LM_COLOR_PULSE 10
 
 //Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
 #define LM_OFF 16
+
+//number 17 will send the enter key press signal only when in lighting control mode
+#define LM_ENTER_KEY 17
+//number 18 will send windows-key+5, which should open the LR2 settings window. Then you can press key 17 to start LR2.
+#define LM_WIN_5_KEY 18
 
 //the default mode is set here - it must be one of the above lighting modes
 #define LM_DEFAULT LM_WIKI_RAINBOW
@@ -147,12 +154,14 @@ uint32_t br1 =   strip.Color(127,   0, 255);
 uint32_t br2 =   strip.Color(255,   0, 255);
 uint32_t br3 =   strip.Color(255,   0, 127);
 
-uint32_t rainbow[] = {red, rg1, rg2, rg3, green, gb1, gb2, gb3, blue, br1, br2, br3};
-int num_rainbow_colors = 12;
-
 uint32_t white =        strip.Color(255, 255, 255);
 uint32_t warm_white =   strip.Color(187, 127,  70);
 uint32_t off =          strip.Color(  0,   0,   0);
+
+uint32_t rainbow[] = {red, rg1, rg2, rg3, green, gb1, gb2, gb3, blue, br1, br2, br3};
+uint32_t marquee[(LM_NUM_ON+LM_NUM_OFF)*LM_NUM_ITERATIONS];
+int num_rainbow_colors = 12;
+int num_marquee_positions = (LM_NUM_ON+LM_NUM_OFF)*LM_NUM_ITERATIONS;
 
 //global variables used below
 long position_left  = 0;
@@ -209,6 +218,7 @@ void setup() {
   strip.begin();
   //initialize with the default lighting parameters:
   lm_switch();
+  populate_marquee(rainbow[lm_current_color]);
 }
 
 void loop() {
@@ -392,6 +402,9 @@ void update_buttons_LM_select(){
 //this is the setup function for lighting. It runs when the control mode button is pressed.
 //it will set the default state of any mode when the appropriate button is pressed.
 void lm_switch(){
+  //still want to have encoders update in case they are to be used in the future to change settings like speed or something while in lighting mode.
+  update_encoders();
+  //this deals with what happens when buttons are pressed. The cases are defined at the top in the #defines section
   if(lm_has_changed){
     switch(lighting_mode){
       case LM_SOLID:
@@ -446,25 +459,23 @@ void lm_switch(){
         }
         break;
 
-        /* re-enable these as they get programmed...
-      case LM_COLOR_PULSE:
-        {
-          #ifdef LIGHTING_DEBUG
-            Serial.println("Lighting Mode is now Color-Pulse.");
-          #endif
-          //change variables as needed for the default state of this lighting mode:
-
-          lm_has_changed = false;
-        }
-        break;
-
       case LM_MARQUEE:
         {
           #ifdef LIGHTING_DEBUG
             Serial.println("Lighting Mode is now Marquee.");
           #endif
           //change variables as needed for the default state of this lighting mode:
-
+          //increment the color every time a button is pressed.
+          lm_current_color++;
+          //if the color is larger than there are colors, reset it.
+          if(lm_current_color >= num_rainbow_colors){
+            lm_current_color = 0;
+          }
+          //reset the transition step variable to 0 so it will start from the new color:
+          populate_marquee(rainbow[lm_current_color]);
+          lm_current_transition_position = 0;
+          //finally, set the color here. There is no need for further input in this mode during the main loop function.
+          LED_marquee(lm_current_transition_position, BOTH_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -475,11 +486,24 @@ void lm_switch(){
             Serial.println("Lighting Mode is now Wiki.");
           #endif
           //change variables as needed for the default state of this lighting mode:
-
+          //increment the color every time a button is pressed.
+          lm_current_color++;
+          //if the color is larger than there are colors, reset it.
+          if(lm_current_color >= num_rainbow_colors){
+            lm_current_color = 0;
+          }
+          //reset the transition step variable to 0 so it will start from the new color:
+          populate_marquee(rainbow[lm_current_color]);
+          //first map the wiki position to the frame offset of a typical slow rotate
+          int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
+          int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
+          //then set the wheel to the rainbow color at that offset
+          LED_marquee(p1_offset, P1_WIKI);
+          LED_marquee(p2_offset, P2_WIKI);
           lm_has_changed = false;
         }
         break;
-        */
+
       case LM_WIKI_RAINBOW:
         {
           #ifdef LIGHTING_DEBUG
@@ -497,6 +521,17 @@ void lm_switch(){
         break;
 
         /* re-enable these as they get programmed...
+      case LM_COLOR_PULSE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Color-Pulse.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+
+          lm_has_changed = false;
+        }
+        break;
+
       case LM_INSERT_NEW_NAME_HERE:
         {
           #ifdef LIGHTING_DEBUG
@@ -516,6 +551,30 @@ void lm_switch(){
           #endif
           //change variables as needed for the default state of this lighting mode:
           LED_single_color(off);
+          lm_has_changed = false;
+        }
+        break;
+      case LM_ENTER_KEY:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Sending enter key press");
+          #endif
+          //this mode just presses the enter key on the teensy's USB keyboard driver.
+          Keyboard.press(KEY_ENTER);
+          Keyboard.release(KEY_ENTER);
+          lm_has_changed = false;
+        }
+        break;
+      case LM_WIN_5_KEY:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Sending windows+5 key press");
+          #endif
+          //this mode just presses the enter key on the teensy's USB keyboard driver.
+          Keyboard.press(MODIFIERKEY_GUI);
+          Keyboard.press(KEY_5);
+          Keyboard.release(MODIFIERKEY_GUI);
+          Keyboard.release(KEY_5);
           lm_has_changed = false;
         }
         break;
@@ -613,25 +672,26 @@ void lighting_control(){
         }
         break;
 
-        /* re-enable these as they get programmed...
-      case LM_COLOR_PULSE:
-        {
-        
-        }
-        break;
-
       case LM_MARQUEE:
         {
-        
+          lm_current_transition_position++;
+          LED_marquee(lm_current_transition_position, BOTH_WIKI);
+          if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
+            lm_current_transition_position = 0;
+          }
         }
         break;
 
       case LM_WIKI:
         {
-        
+          //first map the wiki position to the frame offset of a typical slow rotate
+          int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
+          int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
+          //then set the wheel to the rainbow color at that offset
+          LED_marquee(p1_offset, P1_WIKI);
+          LED_marquee(p2_offset, P2_WIKI);
         }
         break;
-        */
 
       case LM_WIKI_RAINBOW:
         {
@@ -644,7 +704,13 @@ void lighting_control(){
         }
         break;
 
-        /*
+        /* re-enable these as they get programmed...
+      case LM_COLOR_PULSE:
+        {
+        
+        }
+        break;
+
       case LM_INSERT_NEW_NAME_HERE:
         {
           
@@ -738,7 +804,7 @@ void LED_rainbow(int offset, int wiki_select){
         //Should only activate if the LED position is between the current and next LED.
         //set the led number to be set to a number below NUM_LEDS/2
         int corrected_led = led;
-        if(led > (NUM_LEDS/2)){
+        if(led >= (NUM_LEDS/2)){
           corrected_led = led - (NUM_LEDS/2);
         }
         //set the colors once the positions are corrected as needed.
@@ -759,6 +825,135 @@ void LED_rainbow(int offset, int wiki_select){
           #ifdef LIGHTING_DEBUG
           Serial.println("Fix your call to LED_rainbow() to use BOTH_WIKI, P1_WIKI, or P2_WIKI plsthx.");
           #endif
+        }
+        
+        num_leds_set++;
+        //check to see if it's set all of the LEDS. and if so, break from the function
+        if(num_leds_set > NUM_LEDS/2){
+          all_leds_set = true;
+        }
+        #ifdef LIGHTING_DEBUG
+        /* only uncomment if needed. Too spammy.
+        Serial.print("i is: ");
+        Serial.print(i);
+        Serial.print(" and led is: ");
+        Serial.print(led);
+        Serial.print(" and current LED position is ");
+        Serial.print(led_position_array[led]);
+        Serial.print(" and current color position is ");
+        Serial.println(current_color_position);
+        */
+        #endif
+        
+      }
+      if(all_leds_set){
+        break;
+      }
+    }
+  }
+  strip.show();
+}
+
+void populate_marquee(uint32_t color){
+  int current_marquee_position = 0;
+  for(int i=0; i<LM_NUM_ITERATIONS; i++){
+    for(int j=0; j<LM_NUM_ON; j++){
+      marquee[current_marquee_position] = color;
+      current_marquee_position++;
+    }
+    for(int j=0; j<LM_NUM_OFF; j++){
+      marquee[current_marquee_position] = off;
+      current_marquee_position++;
+    }
+  }
+}
+
+void LED_marquee(int offset, int wiki_select){
+  //this started as the wiki rainbow code, but now is changed to step more abruptly.
+
+  //will need to take into account negative offsets for wiki animations. This can be done by inverting the offset at the start:
+  if(offset <= 0){
+    offset = LM_SLOW_ROTATE_FRAMES+offset;
+  }
+
+  //So to start, we will need an offset number which maps which of the positions the num_marquee_positions 'pure' colors map to.
+  int pure_color_offset = LM_SLOW_ROTATE_FRAMES*LM_SLOW_ROTATE_SCALING_FACTOR/num_marquee_positions;
+  //then we will need an offset which notes which NUM_LEDS/2 positions out of the total fall directly on the LEDs
+  int led_position_offset = LM_SLOW_ROTATE_FRAMES*LM_SLOW_ROTATE_SCALING_FACTOR/(NUM_LEDS/2);
+  //With this number we can make note of the positions where LEDs will always be in an array:
+  int led_position_array[NUM_LEDS];
+  led_position_array[0] = 0;
+  for(int i=1; i<(NUM_LEDS); i++){
+    led_position_array[i] = led_position_array[i-1]+led_position_offset;
+  }
+
+  uint32_t double_marquee[num_marquee_positions*2];
+  for(int i=0; i<num_marquee_positions; i++){
+    double_marquee[i] = marquee[i];
+  }
+  for(int i=0; i<num_marquee_positions; i++){
+    double_marquee[i+num_marquee_positions] = marquee[i];
+  }
+  
+  //make an int to track the number of LEDS that have been set.
+  int num_leds_set = 0;
+  //and another to tell the for loop to break when all have been set
+  bool all_leds_set = false;
+
+  //iterate through the colors starting at the starting LED, and looping back when it hits NUM_LEDS/2
+  for(int i=0; i<num_marquee_positions*2; i++){
+    //establish the current and next color. the next color will need to be color 0 on the final iteration.
+    uint32_t current_color;
+    uint32_t next_color;
+    if(i != (num_marquee_positions*2-1)){
+      current_color = double_marquee[i];
+      next_color = double_marquee[i+1];
+    }
+    else{
+      current_color = double_marquee[i];
+      next_color = double_marquee[0];
+    }
+    //break out the RGB values from the 32 bit color for mapping purposes.
+    uint8_t current_red = (uint8_t)(current_color >> 16);
+    uint8_t current_green = (uint8_t)(current_color >> 8);
+    uint8_t current_blue = (uint8_t)(current_color);
+    uint8_t next_red = (uint8_t)(next_color >> 16);
+    uint8_t next_green = (uint8_t)(next_color >> 8);
+    uint8_t next_blue = (uint8_t)(next_color);
+    
+    //set the current and next color positions. If either is greater than LM_SLOW_ROTATE_FRAMES, it will need to be fixed before setting a color.
+    int current_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset);
+    int next_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset) + pure_color_offset;
+
+    //iterate through all LEDs and see which LEDs are between the color positions.
+    for(int led = 0; led < NUM_LEDS; led++){
+      if(led_position_array[led] >= current_color_position && led_position_array[led] < next_color_position){
+        //Should only activate if the LED position is between the current and next LED.
+        //set the led number to be set to a number below NUM_LEDS/2
+        int corrected_led = led;
+        if(led >= (NUM_LEDS/2)){
+          corrected_led = led - (NUM_LEDS/2);
+        }
+        //set the colors once the positions are corrected only on the LM_MARQUEE_FRAMESth frame
+        if((offset%LM_MARQUEE_FRAMES) == 0 || lighting_mode == LM_WIKI){
+          uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
+          uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
+          uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
+          if(wiki_select == BOTH_WIKI){
+            strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+            strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+          }
+          else if(wiki_select == P1_WIKI){
+            strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+          }
+          else if(wiki_select == P2_WIKI){
+            strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+          }
+          else{
+            #ifdef LIGHTING_DEBUG
+            Serial.println("Fix your call to LED_rainbow() to use BOTH_WIKI, P1_WIKI, or P2_WIKI plsthx.");
+            #endif
+          }
         }
         
         num_leds_set++;
