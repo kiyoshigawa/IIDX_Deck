@@ -70,32 +70,46 @@ It is designed to run as a joystick, and as such this options must be selected a
 
 //lighting mode definitions: Pressing the corresponding button will switch to that mode when in lighting control mode
 
+//the 4 white p1 buttons:
 //Solid lighting in a single color. 
 #define LM_SOLID 1
-//directional marquee - will be like a normal marquee, but changing directions to match the last direction the wiki travelled in.
-#define LM_DIRECTIONAL_MARQUEE 2
 //slow_fade - will slowly cycle through solid rainbow colors on both wheels.
 #define LM_SLOW_FADE 3
-//wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
-#define LM_WIKI 4
-//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals
+//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals - Direciton changes to match disk last spin direction.
 #define LM_MARQUEE 5
+//marquee slow_fade - same as marquee, but colors will fade through rainbow over time.
+#define LM_MARQUEE_SLOW_FADE 7
+
+//the 3 blue p1 buttons:
+//wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
+#define LM_WIKI 2
+//slow-fade wiki-follower - slowly transitioning colored lights will alternate every other LED on the wheel and follow the movement of the wheels.
+#define LM_WIKI_SLOW_FADE 4
 //wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
 #define LM_WIKI_RAINBOW 6
+
+//the 4 white p2 buttons:
 //slow_rotate - a rainbow pattern will slowly rotate around the disks
-#define LM_SLOW_ROTATE 7
-//rainbow_up - this increments the rainbow to the next rainbow in the array in a negative direction
-#define LM_RAINBOW_DOWN 8
-//rainbow_up - this increments the rainbow to the next rainbow in the array in a positive direction
-#define LM_RAINBOW_UP 9
-//random_rainbow - this jumps the rainbow to a random position whenever a button is pressed.
-#define LM_RANDOM_RAINBOW 10
-//Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
-#define LM_COLOR_PULSE 11
+#define LM_SLOW_ROTATE 10
+//Mode 12
+
+//Mode 14
 
 //Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
 #define LM_OFF 16
 
+//the 3 blue p2 buttons:
+//random_rainbow - this jumps the rainbow to a random position whenever a button is pressed.
+#define LM_RANDOM_RAINBOW 11
+//Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
+#define LM_COLOR_PULSE 13
+//Mode 15
+
+
+//rainbow_up - this increments the rainbow to the next rainbow in the array in a negative direction
+#define LM_RAINBOW_DOWN 8
+//rainbow_up - this increments the rainbow to the next rainbow in the array in a positive direction
+#define LM_RAINBOW_UP 9
 //number 17 will send the enter key press signal only when in lighting control mode
 #define LM_ENTER_KEY 17
 //number 18 will send windows-key+5, which should open the LR2 settings window. Then you can press key 17 to start LR2.
@@ -329,6 +343,7 @@ unsigned long last_lighting_update = 0;
 //int to keep track of state of fades and rotations
 int lm_current_transition_position = 0;
 int lm_current_transition_position_2 = 0;
+int lm_current_marquee_color_position = 0;
 //variables for lighting effects that fire when buttons are pressed during gameplay
 bool lm_p1_button_has_been_pressed = false;
 bool lm_p2_button_has_been_pressed = false;
@@ -628,18 +643,6 @@ void lm_switch(){
         }
         break;
 
-      case LM_SLOW_ROTATE:
-        {
-          #ifdef LIGHTING_DEBUG
-            Serial.println("Lighting Mode is now Slow-Rotate.");
-          #endif
-          //reset the transition step variable to 0 so it will start from the new color:
-          lm_current_transition_position = 0;
-          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
-          lm_has_changed = false;
-        }
-        break;
-
       case LM_MARQUEE:
         {
           #ifdef LIGHTING_DEBUG
@@ -669,10 +672,10 @@ void lm_switch(){
         }
         break;
 
-      case LM_DIRECTIONAL_MARQUEE:
+      case LM_MARQUEE_SLOW_FADE:
         {
           #ifdef LIGHTING_DEBUG
-            Serial.println("Lighting Mode is now Directional Marquee.");
+            Serial.println("Lighting Mode is now Slow Fading Marquee.");
           #endif
           //change variables as needed for the default state of this lighting mode:
           //increment the color every time a button is pressed.
@@ -692,6 +695,8 @@ void lm_switch(){
           //reset the transition step variable to 0 so it will start from the new color:
           populate_marquee(rainbow[lm_current_color]);
           lm_current_transition_position = 0;
+          //reset color transition to 0.
+          lm_current_marquee_color_position = 0;
           //finally, set the color here. There is no need for further input in this mode during the main loop function.
           LED_marquee(lm_current_transition_position, BOTH_WIKI);
           lm_has_changed = false;
@@ -730,6 +735,40 @@ void lm_switch(){
         }
         break;
 
+      case LM_WIKI_SLOW_FADE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now slow fading Wiki.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          //increment the color every time a button is pressed.
+          lm_current_color++;
+          //if the color is larger than there are colors, reset it.
+          if(lm_current_color >= num_rainbow_colors){
+            lm_current_color = 0;
+          }
+          //skip the color if it is 'off' for this mode.
+          while(rainbow[lm_current_color] == off){
+            lm_current_color++;
+            //loop back to the start as required.
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
+          }
+          //reset the transition step variable to 0 so it will start from the new color:
+          populate_marquee(rainbow[lm_current_color]);
+          //first map the wiki position to the frame offset of a typical slow rotate
+          int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
+          int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
+          //reset color transition to 0.
+          lm_current_marquee_color_position = 0;
+          //then set the wheel to the rainbow color at that offset
+          LED_marquee(p1_offset, P1_WIKI);
+          LED_marquee(p2_offset, P2_WIKI);
+          lm_has_changed = false;
+        }
+        break;
+
       case LM_WIKI_RAINBOW:
         {
           #ifdef LIGHTING_DEBUG
@@ -742,6 +781,18 @@ void lm_switch(){
           //then set the wheel to the rainbow color at that offset
           LED_rainbow(p1_offset, P1_WIKI);
           LED_rainbow(p2_offset, P2_WIKI);
+          lm_has_changed = false;
+        }
+        break;
+
+      case LM_SLOW_ROTATE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Slow-Rotate.");
+          #endif
+          //reset the transition step variable to 0 so it will start from the new color:
+          lm_current_transition_position = 0;
+          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -968,28 +1019,7 @@ void lighting_control(){
         }
         break;
 
-      case LM_SLOW_ROTATE:
-        {
-          //increment frames, jump to the next color if rollover occurs:
-          lm_current_transition_position++;
-          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
-          if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
-            lm_current_transition_position = 0;
-          }
-        }
-        break;
-
       case LM_MARQUEE:
-        {
-          lm_current_transition_position++;
-          LED_marquee(lm_current_transition_position, BOTH_WIKI);
-          if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
-            lm_current_transition_position = 0;
-          }
-        }
-        break;
-
-      case LM_DIRECTIONAL_MARQUEE:
         {
           //set p1 directions
           if(direction_left == POSITIVE){
@@ -1038,6 +1068,121 @@ void lighting_control(){
         }
         break;
 
+      case LM_MARQUEE_SLOW_FADE:
+        {
+          //update colors first:
+          //set the color to a step between the current color and the next in the loop, based on how far along the LM_SLOW_FADE_FRAMES position.
+          //set variable for mapping
+          uint32_t current_color = rainbow[lm_current_color];
+          uint32_t next_color = 0;
+          if(lm_current_color >= (num_rainbow_colors-1)){
+            next_color = rainbow[0];
+          }
+          else{
+            next_color = rainbow[lm_current_color+1];
+          }
+          //assign the colors based on the above.
+          uint32_t current_red = (uint8_t)(current_color >> 16);
+          uint32_t current_green = (uint8_t)(current_color >> 8);
+          uint32_t current_blue = (uint8_t)(current_color);
+          uint32_t next_red = (uint8_t)(next_color >> 16);
+          uint32_t next_green = (uint8_t)(next_color >> 8);
+          uint32_t next_blue = (uint8_t)(next_color);
+          //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
+          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
+          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          //check to see if the mid color is 'off' and increment until it is no longer off.
+          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+            //increment frames, jump to the next color if rollover occurs:
+            lm_current_marquee_color_position++;
+            if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+              lm_current_marquee_color_position = 0;
+              lm_current_color++;
+              if(lm_current_color >= num_rainbow_colors){
+                lm_current_color = 0;
+              }
+            }
+            current_color = rainbow[lm_current_color];
+            if(lm_current_color >= (num_rainbow_colors-1)){
+              next_color = rainbow[0];
+            }
+            else{
+              next_color = rainbow[lm_current_color+1];
+            }
+            current_red = (uint8_t)(current_color >> 16);
+            current_green = (uint8_t)(current_color >> 8);
+            current_blue = (uint8_t)(current_color);
+            next_red = (uint8_t)(next_color >> 16);
+            next_green = (uint8_t)(next_color >> 8);
+            next_blue = (uint8_t)(next_color);
+            //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+            mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
+            mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
+            mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+                        
+          }
+
+          //set the marquee to the right color:
+          populate_marquee(strip.Color(mid_red, mid_green, mid_blue));
+
+          //set p1 directions
+          if(direction_left == POSITIVE){
+            last_p1_direction = NEGATIVE;
+          }
+          else if(direction_left == NEGATIVE){
+            last_p1_direction = POSITIVE;
+          }
+          //increment in the correct direction. Will continue even if the disk stops.
+          if(last_p1_direction == POSITIVE){
+            lm_current_transition_position++;
+            LED_marquee(lm_current_transition_position, P1_WIKI);
+            if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position = 0;
+            }
+          }
+          else if(last_p1_direction == NEGATIVE){
+            lm_current_transition_position--;
+            LED_marquee(lm_current_transition_position, P1_WIKI);
+            if(lm_current_transition_position <= -LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position = 0;
+            }
+          }
+          //set p2 directions
+          if(direction_right == POSITIVE){
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE){
+            last_p2_direction = NEGATIVE;
+          }
+          //increment in the correct direction. Will continue even if the disk stops.
+          if(last_p2_direction == POSITIVE){
+            lm_current_transition_position_2++;
+            LED_marquee(lm_current_transition_position_2, P2_WIKI);
+            if(lm_current_transition_position_2 >= LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position_2 = 0;
+            }
+          }
+          else if(last_p2_direction == NEGATIVE){
+            lm_current_transition_position_2--;
+            LED_marquee(lm_current_transition_position_2, P2_WIKI);
+            if(lm_current_transition_position_2 <= -LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position_2 = 0;
+            }
+          }
+
+          //increment frames, jump to the next color if rollover occurs:
+          lm_current_marquee_color_position++;
+          if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+            lm_current_marquee_color_position = 0;
+            lm_current_color++;
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
+          }
+        }
+        break;
+
       case LM_WIKI:
         {
           //first map the wiki position to the frame offset of a typical slow rotate
@@ -1049,6 +1194,83 @@ void lighting_control(){
         }
         break;
 
+      case LM_WIKI_SLOW_FADE:
+        {
+          //update colors first:
+          //set the color to a step between the current color and the next in the loop, based on how far along the LM_SLOW_FADE_FRAMES position.
+          //set variable for mapping
+          uint32_t current_color = rainbow[lm_current_color];
+          uint32_t next_color = 0;
+          if(lm_current_color >= (num_rainbow_colors-1)){
+            next_color = rainbow[0];
+          }
+          else{
+            next_color = rainbow[lm_current_color+1];
+          }
+          //assign the colors based on the above.
+          uint32_t current_red = (uint8_t)(current_color >> 16);
+          uint32_t current_green = (uint8_t)(current_color >> 8);
+          uint32_t current_blue = (uint8_t)(current_color);
+          uint32_t next_red = (uint8_t)(next_color >> 16);
+          uint32_t next_green = (uint8_t)(next_color >> 8);
+          uint32_t next_blue = (uint8_t)(next_color);
+          //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
+          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
+          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          //check to see if the mid color is 'off' and increment until it is no longer off.
+          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+            //increment frames, jump to the next color if rollover occurs:
+            lm_current_marquee_color_position++;
+            if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+              lm_current_marquee_color_position = 0;
+              lm_current_color++;
+              if(lm_current_color >= num_rainbow_colors){
+                lm_current_color = 0;
+              }
+            }
+            current_color = rainbow[lm_current_color];
+            if(lm_current_color >= (num_rainbow_colors-1)){
+              next_color = rainbow[0];
+            }
+            else{
+              next_color = rainbow[lm_current_color+1];
+            }
+            current_red = (uint8_t)(current_color >> 16);
+            current_green = (uint8_t)(current_color >> 8);
+            current_blue = (uint8_t)(current_color);
+            next_red = (uint8_t)(next_color >> 16);
+            next_green = (uint8_t)(next_color >> 8);
+            next_blue = (uint8_t)(next_color);
+            //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+            mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
+            mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
+            mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+                        
+          }
+
+          //set the marquee to the right color:
+          populate_marquee(strip.Color(mid_red, mid_green, mid_blue));
+
+          //first map the wiki position to the frame offset of a typical slow rotate
+          int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
+          int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
+          //then set the wheel to the rainbow color at that offset
+          LED_marquee(p1_offset, P1_WIKI);
+          LED_marquee(p2_offset, P2_WIKI);
+
+          //increment frames, jump to the next color if rollover occurs:
+          lm_current_marquee_color_position++;
+          if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+            lm_current_marquee_color_position = 0;
+            lm_current_color++;
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
+          }
+        }
+        break;
+
       case LM_WIKI_RAINBOW:
         {
           //first map the wiki position to the frame offset of a typical slow rotate
@@ -1057,6 +1279,17 @@ void lighting_control(){
           //then set the wheel to the rainbow color at that offset
           LED_rainbow(p1_offset, P1_WIKI);
           LED_rainbow(p2_offset, P2_WIKI);
+        }
+        break;
+
+      case LM_SLOW_ROTATE:
+        {
+          //increment frames, jump to the next color if rollover occurs:
+          lm_current_transition_position++;
+          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
+          if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
+            lm_current_transition_position = 0;
+          }
         }
         break;
 
@@ -1118,6 +1351,21 @@ void set_rainbow(int num){
   num_rainbow_colors = rainbows[num].num_colors;
   for(int i=0; i<num_rainbow_colors; i++){
     rainbow[i] = rainbows[num].colors[i];
+  }
+}
+
+//this sets an array similar to a rainbow for marquee functions. Call it to update the marquee color.
+void populate_marquee(uint32_t color){
+  int current_marquee_position = 0;
+  for(int i=0; i<LM_NUM_ITERATIONS; i++){
+    for(int j=0; j<LM_NUM_ON; j++){
+      marquee[current_marquee_position] = color;
+      current_marquee_position++;
+    }
+    for(int j=0; j<LM_NUM_OFF; j++){
+      marquee[current_marquee_position] = off;
+      current_marquee_position++;
+    }
   }
 }
 
@@ -1261,20 +1509,7 @@ void LED_rainbow(int offset, int wiki_select){
   strip.show();
 }
 
-void populate_marquee(uint32_t color){
-  int current_marquee_position = 0;
-  for(int i=0; i<LM_NUM_ITERATIONS; i++){
-    for(int j=0; j<LM_NUM_ON; j++){
-      marquee[current_marquee_position] = color;
-      current_marquee_position++;
-    }
-    for(int j=0; j<LM_NUM_OFF; j++){
-      marquee[current_marquee_position] = off;
-      current_marquee_position++;
-    }
-  }
-}
-
+//this fills the marquee functions. To change colors, use populate_marquee()
 void LED_marquee(int offset, int wiki_select){
   //this started as the wiki rainbow code, but now is changed to step more abruptly.
 
@@ -1342,7 +1577,7 @@ void LED_marquee(int offset, int wiki_select){
           corrected_led = led - (NUM_LEDS/2);
         }
         //set the colors once the positions are corrected only on the LM_MARQUEE_FRAMESth frame
-        if((offset%LM_MARQUEE_FRAMES) == 0 || lighting_mode == LM_WIKI){
+        if((offset%LM_MARQUEE_FRAMES) == 0 || lighting_mode == LM_WIKI || lighting_mode == LM_WIKI_SLOW_FADE){
           uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
           uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
           uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
