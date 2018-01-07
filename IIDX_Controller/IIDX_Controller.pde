@@ -15,7 +15,6 @@ It is designed to run as a joystick, and as such this options must be selected a
 #include <Encoder.h>
 #include <Bounce.h>
 #include <Adafruit_NeoPixel.h>
-#include <array>
 
 //defines to make the code more readable:
 #define POSITIVE 1
@@ -291,6 +290,9 @@ const uint8_t PROGMEM gamma8[] = {
       144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
       177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
       215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+
+//this is a variable for avoiding setting colors to be off based on the start of this table being mostly off.
+#define FIRST_NON_OFF_COLOR 28
 
 //a new wrapper function to replace the strip.Color I have used previously. Still takes the same arguments and then calls the normal function with the table above as a reference.
 void strip_setPixelColor(int led, uint32_t color){
@@ -582,6 +584,14 @@ void lm_switch(){
           if(lm_current_color >= num_rainbow_colors){
             lm_current_color = 0;
           }
+          //skip the color if it is 'off' for this mode.
+          while(rainbow[lm_current_color] == off){
+            lm_current_color++;
+            //loop back to the start as required.
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
+          }
           //finally, set the color here. There is no need for further input in this mode during the main loop function.
           LED_single_color(rainbow[lm_current_color]);
           lm_has_changed = false;
@@ -601,6 +611,14 @@ void lm_switch(){
           //if the color is larger than there are colors, reset it.
           if(lm_current_color >= num_rainbow_colors){
             lm_current_color = 0;
+          }
+          //skip the color if it is 'off' for this mode.
+          while(rainbow[lm_current_color] == off){
+            lm_current_color++;
+            //loop back to the start as required.
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
           }
           //reset the transition step variable to 0 so it will start from the new color:
           lm_current_transition_position = 0;
@@ -634,6 +652,14 @@ void lm_switch(){
           if(lm_current_color >= num_rainbow_colors){
             lm_current_color = 0;
           }
+          //skip the color if it is 'off' for this mode.
+          while(rainbow[lm_current_color] == off){
+            lm_current_color++;
+            //loop back to the start as required.
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
+          }
           //reset the transition step variable to 0 so it will start from the new color:
           populate_marquee(rainbow[lm_current_color]);
           lm_current_transition_position = 0;
@@ -655,6 +681,14 @@ void lm_switch(){
           if(lm_current_color >= num_rainbow_colors){
             lm_current_color = 0;
           }
+          //skip the color if it is 'off' for this mode.
+          while(rainbow[lm_current_color] == off){
+            lm_current_color++;
+            //loop back to the start as required.
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
+          }
           //reset the transition step variable to 0 so it will start from the new color:
           populate_marquee(rainbow[lm_current_color]);
           lm_current_transition_position = 0;
@@ -675,6 +709,14 @@ void lm_switch(){
           //if the color is larger than there are colors, reset it.
           if(lm_current_color >= num_rainbow_colors){
             lm_current_color = 0;
+          }
+          //skip the color if it is 'off' for this mode.
+          while(rainbow[lm_current_color] == off){
+            lm_current_color++;
+            //loop back to the start as required.
+            if(lm_current_color >= num_rainbow_colors){
+              lm_current_color = 0;
+            }
           }
           //reset the transition step variable to 0 so it will start from the new color:
           populate_marquee(rainbow[lm_current_color]);
@@ -861,16 +903,47 @@ void lighting_control(){
           else{
             next_color = rainbow[lm_current_color+1];
           }
-          uint8_t current_red = (uint8_t)(current_color >> 16);
-          uint8_t current_green = (uint8_t)(current_color >> 8);
-          uint8_t current_blue = (uint8_t)(current_color);
-          uint8_t next_red = (uint8_t)(next_color >> 16);
-          uint8_t next_green = (uint8_t)(next_color >> 8);
-          uint8_t next_blue = (uint8_t)(next_color);
+          //assign the colors based on the above.
+          uint32_t current_red = (uint8_t)(current_color >> 16);
+          uint32_t current_green = (uint8_t)(current_color >> 8);
+          uint32_t current_blue = (uint8_t)(current_color);
+          uint32_t next_red = (uint8_t)(next_color >> 16);
+          uint32_t next_green = (uint8_t)(next_color >> 8);
+          uint32_t next_blue = (uint8_t)(next_color);
           //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
           uint32_t mid_red = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
           uint32_t mid_green = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
           uint32_t mid_blue = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          //check to see if the mid color is 'off' and increment until it is no longer off.
+          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+            //increment frames, jump to the next color if rollover occurs:
+            lm_current_transition_position++;
+            if(lm_current_transition_position >= LM_SLOW_FADE_FRAMES){
+              lm_current_transition_position = 0;
+              lm_current_color++;
+              if(lm_current_color >= num_rainbow_colors){
+                lm_current_color = 0;
+              }
+            }
+            current_color = rainbow[lm_current_color];
+            if(lm_current_color >= (num_rainbow_colors-1)){
+              next_color = rainbow[0];
+            }
+            else{
+              next_color = rainbow[lm_current_color+1];
+            }
+            current_red = (uint8_t)(current_color >> 16);
+            current_green = (uint8_t)(current_color >> 8);
+            current_blue = (uint8_t)(current_color);
+            next_red = (uint8_t)(next_color >> 16);
+            next_green = (uint8_t)(next_color >> 8);
+            next_blue = (uint8_t)(next_color);
+            //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+            mid_red = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
+            mid_green = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
+            mid_blue = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+                        
+          }
           //set the color:
           LED_single_color(strip.Color(mid_red, mid_green, mid_blue));
           #ifdef LIGHTING_DEBUG
@@ -1045,6 +1118,20 @@ void set_rainbow(int num){
   num_rainbow_colors = rainbows[num].num_colors;
   for(int i=0; i<num_rainbow_colors; i++){
     rainbow[i] = rainbows[num].colors[i];
+  }
+}
+
+//this will test if a color is off after gamma correction
+bool is_gc_color_off(uint32_t color){
+  uint8_t current_red = (uint8_t)(color >> 16);
+  uint8_t current_green = (uint8_t)(color >> 8);
+  uint8_t current_blue = (uint8_t)(color);
+  uint32_t test_color = strip.Color(pgm_read_byte(&gamma8[current_red]), pgm_read_byte(&gamma8[current_green]), pgm_read_byte(&gamma8[current_blue]));
+  if(test_color == off){
+    return true;
+  }
+  else{
+    return false;
   }
 }
 
