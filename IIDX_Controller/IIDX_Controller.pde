@@ -15,6 +15,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 #include <Encoder.h>
 #include <Bounce.h>
 #include <Adafruit_NeoPixel.h>
+#include <array>
 
 //defines to make the code more readable:
 #define POSITIVE 1
@@ -24,6 +25,13 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define BOTH_WIKI 0
 #define P1_WIKI 1
 #define P2_WIKI 2
+
+//this is the most numbers a 'rainbow' can have for fades and color selection.
+#define MAX_RAINBOW_COLORS 29
+#define MAX_NUM_RAINBOWS 50
+
+//set this to a number of milliseconds to wait for a serial connection before continuing with normal setep.
+#define SERIAL_WAIT_TIMEOUT 10000
 
 //number of steps in an encoder revolution. Designed using 600 pips/revolutiuon quadrature encoders, so default is 2400.
 //turns out it's skipping pips a fair amount around the rotation, so I just made it go faster than the rotation because I like the look of it.
@@ -48,12 +56,12 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LIGHTING_REFRESH_DELAY 15
 
 //Variables for the number of frames per animation. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
-#define LM_SLOW_FADE_FRAMES 900
+#define LM_SLOW_FADE_FRAMES 300
 #define LM_SLOW_ROTATE_FRAMES 300
 #define LM_MARQUEE_FRAMES 15
 
 //this scaling factor allows for smoother transitions around the edges on slow_rotate style animations. The integer math rounding makes abrupt changes otherwise
-#define LM_SLOW_ROTATE_SCALING_FACTOR 3000
+#define LM_SLOW_ROTATE_SCALING_FACTOR 30000
 
 //a couple defines for marquee automatic generation
 #define LM_NUM_ON 1
@@ -65,22 +73,26 @@ It is designed to run as a joystick, and as such this options must be selected a
 
 //Solid lighting in a single color. 
 #define LM_SOLID 1
-//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals
-#define LM_MARQUEE 2
-//slow_fade - will slowly cycle through solid rainbow colors on both wheels
+//directional marquee - will be like a normal marquee, but changing directions to match the last direction the wiki travelled in.
+#define LM_DIRECTIONAL_MARQUEE 2
+//slow_fade - will slowly cycle through solid rainbow colors on both wheels.
 #define LM_SLOW_FADE 3
 //wiki-follower - single color lights will alternate every other LED on the wheel and follow the movement of the wheels.
 #define LM_WIKI 4
-//slow_rotate - a rainbow pattern will slowly rotate around the disks
-#define LM_SLOW_ROTATE 5
-//#6 will go here
-
+//marquee - will make a repeating on/off pattern that rotates around at fixed time intervals
+#define LM_MARQUEE 5
 //wiki_rainbow - multi-color rainbow pattern will follow the wiki wheel
-#define LM_WIKI_RAINBOW 7
-//numbers 8 and 9 will likely be used for speed adjustments in the future
-
+#define LM_WIKI_RAINBOW 6
+//slow_rotate - a rainbow pattern will slowly rotate around the disks
+#define LM_SLOW_ROTATE 7
+//rainbow_up - this increments the rainbow to the next rainbow in the array in a negative direction
+#define LM_RAINBOW_DOWN 8
+//rainbow_up - this increments the rainbow to the next rainbow in the array in a positive direction
+#define LM_RAINBOW_UP 9
+//random_rainbow - this jumps the rainbow to a random position whenever a button is pressed.
+#define LM_RANDOM_RAINBOW 10
 //Color Pulse - set off a pulse of color that will rotate around the disk on one a side when a button is pressed on that side.
-#define LM_COLOR_PULSE 10
+#define LM_COLOR_PULSE 11
 
 //Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
 #define LM_OFF 16
@@ -91,7 +103,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_WIN_5_KEY 18
 
 //the default mode is set here - it must be one of the above lighting modes
-#define LM_DEFAULT LM_WIKI_RAINBOW
+#define LM_DEFAULT LM_SLOW_ROTATE
 
 //array of button pins
 int p1_buttons[] = {10, 11, 12, 0, 18, 14, 15, 16, 17};
@@ -141,27 +153,152 @@ Encoder knobRight(right_knob_pin_a, right_knob_pin_b);
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(58, lighting_control_pin, NEO_GRB + NEO_KHZ800);
 
 //named color definitions:
-uint32_t red =   strip.Color(255,   0,   0);
-uint32_t rg1 =   strip.Color(255, 127,   0);
-uint32_t rg2 =   strip.Color(255, 255,   0);
-uint32_t rg3 =   strip.Color(127, 255,   0);
-uint32_t green = strip.Color(  0, 255,   0);
-uint32_t gb1 =   strip.Color(  0, 255, 127);
-uint32_t gb2 =   strip.Color(  0, 255, 255);
-uint32_t gb3 =   strip.Color(  0, 127, 255);
-uint32_t blue =  strip.Color(  0,   0, 255);
-uint32_t br1 =   strip.Color(127,   0, 255);
-uint32_t br2 =   strip.Color(255,   0, 255);
-uint32_t br3 =   strip.Color(255,   0, 127);
+uint32_t red = strip.Color(255, 0, 0);
+uint32_t green = strip.Color(0, 255, 0);
+uint32_t blue = strip.Color(0, 0, 255);
 
-uint32_t white =        strip.Color(255, 255, 255);
-uint32_t warm_white =   strip.Color(187, 127,  70);
-uint32_t off =          strip.Color(  0,   0,   0);
+uint32_t off = strip.Color(0, 0, 0);
 
-uint32_t rainbow[] = {red, rg1, rg2, rg3, green, gb1, gb2, gb3, blue, br1, br2, br3};
+//a structure for holding rainbows called rainbow:
+struct rainbow {
+  uint32_t colors[MAX_RAINBOW_COLORS];
+  int num_colors;
+};
+
+//these are the various 'rainbows' that can be swapped between for color selection on rainbow functions
+//rainbow1 is the traditional roygbiv rainbow pattern
+rainbow r1 = {
+  .colors = {strip.Color(255,   0,   0),
+             strip.Color(255, 255,   0),
+             strip.Color(  0, 255,   0),
+             strip.Color(  0, 255, 255),
+             strip.Color(  0,   0, 255),
+             strip.Color(255,   0, 255)},
+  .num_colors = 6
+};
+
+//rainbow r2 is a double rainbow of r1
+rainbow r2 = {
+  .colors = { strip.Color(255,   0,   0),
+              strip.Color(255, 255,   0),
+              strip.Color(  0, 255,   0),
+              strip.Color(  0, 255, 255),
+              strip.Color(  0,   0, 255),
+              strip.Color(255,   0, 255),
+              strip.Color(255,   0,   0),
+              strip.Color(255, 255,   0),
+              strip.Color(  0, 255,   0),
+              strip.Color(  0, 255, 255),
+              strip.Color(  0,   0, 255),
+              strip.Color(255,   0, 255)},
+  .num_colors = 12
+};
+
+//the primary colors red, blue and yellow:
+rainbow r3 = {
+  .colors = { strip.Color(255, 0, 0),
+              off,
+              strip.Color(255, 255, 0), 
+              off,
+              strip.Color(0, 0, 255),
+              off},
+  .num_colors = 6
+};
+
+//the secondary colors orange, green and purple:
+rainbow r4 = {
+  .colors = { off,
+              strip.Color(255, 127, 0),
+              off,
+              strip.Color(0, 255, 0), 
+              off,
+              strip.Color(255, 0, 255)},
+  .num_colors = 6
+};
+
+//purplish color scheme
+rainbow r5 = {
+  .colors = { strip.Color(255,1,252), 
+              strip.Color(202, 1, 255), 
+              strip.Color(127,1,231), 
+              strip.Color(89,18,208), 
+              strip.Color(52,34,176), 
+              strip.Color(44,50,135),
+              strip.Color(255,1,252), 
+              strip.Color(202, 1, 255), 
+              strip.Color(127,1,231), 
+              strip.Color(89,18,208), 
+              strip.Color(52,34,176), 
+              strip.Color(44,50,135)},
+  .num_colors = 12
+};
+//red and orange and yellow color scheme
+rainbow r6 = {
+  .colors = { strip.Color(204,0,102), 
+              strip.Color(213,37,83), 
+              strip.Color(223,74,65), 
+              strip.Color(232,111,46), 
+              strip.Color(241,148,28), 
+              strip.Color(255,204,0),
+              strip.Color(204,0,102), 
+              strip.Color(213,37,83), 
+              strip.Color(223,74,65), 
+              strip.Color(232,111,46), 
+              strip.Color(241,148,28), 
+              strip.Color(255,204,0)},
+  .num_colors = 12
+};
+
+/* - Default rainbow template to copy.
+rainbow rX = {
+  .colors = { strip.Color(), 
+              strip.Color(), 
+              strip.Color(), 
+              strip.Color(), 
+              strip.Color(), 
+              strip.Color()},
+  .num_colors = 6
+};
+*/
+
+//initialize one rainbows array to hold all the rainbows:
+rainbow rainbows[MAX_NUM_RAINBOWS] = {r1, r2, r3, r4, r5, r6};
+int num_rainbows = 6;
+int current_rainbow = 0;
+
+//Initialize the rainbow array to be the same size as the other arrays above. It will be set in the setup function and adjusted in the remaining program.
+uint32_t rainbow[MAX_RAINBOW_COLORS];
+int num_rainbow_colors = MAX_RAINBOW_COLORS;
+
 uint32_t marquee[(LM_NUM_ON+LM_NUM_OFF)*LM_NUM_ITERATIONS];
-int num_rainbow_colors = 12;
 int num_marquee_positions = (LM_NUM_ON+LM_NUM_OFF)*LM_NUM_ITERATIONS;
+
+//a color correction table for the neopixel color settings:
+const uint8_t PROGMEM gamma8[] = {
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
+        1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
+        2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
+        5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
+       10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+       17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+       25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+       37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+       51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+       69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+       90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
+      115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+      144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+      177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+      215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+
+//a new wrapper function to replace the strip.Color I have used previously. Still takes the same arguments and then calls the normal function with the table above as a reference.
+void strip_setPixelColor(int led, uint32_t color){
+  uint8_t red = (uint8_t)(color >> 16);
+  uint8_t green = (uint8_t)(color >> 8);
+  uint8_t blue = (uint8_t)(color);
+  strip.setPixelColor(led, pgm_read_byte(&gamma8[red]), pgm_read_byte(&gamma8[green]), pgm_read_byte(&gamma8[blue]));
+}
 
 //global variables used below
 long position_left  = 0;
@@ -172,22 +309,35 @@ unsigned long last_left_move_time = 0;
 unsigned long last_right_move_time = 0;
 bool left_encoder_has_stopped = true;
 bool right_encoder_has_stopped = true;
+//variables to keep track of direction of travel for differing disks in animations like directional marquee
+int last_p1_direction = POSITIVE;
+int last_p2_direction = POSITIVE;
 
 //global lighting mode variables:
 //default lighting_mode when starting up.
 int lighting_mode = LM_DEFAULT;
+//previous lighting mode variable to make it possible to mod settings without changing modes
+int previous_lighting_mode = LM_DEFAULT;
 //this is a flag to let the switch function know if it should reset a lighting mode.
 int lm_has_changed = true;
 //this is for color modes that cycle through colors
-int lm_current_color = 12;
+int lm_current_color = num_rainbow_colors;
 //time variable for limiting lighting refresh rate:
 unsigned long last_lighting_update = 0;
 //int to keep track of state of fades and rotations
 int lm_current_transition_position = 0;
+int lm_current_transition_position_2 = 0;
+//variables for lighting effects that fire when buttons are pressed during gameplay
+bool lm_p1_button_has_been_pressed = false;
+bool lm_p2_button_has_been_pressed = false;
 
 void setup() {
   Serial.begin(9600);
-  while(!Serial){};
+  while(!Serial){
+    if(millis() > SERIAL_WAIT_TIMEOUT){
+      break;
+    }
+  }
   #ifdef ENCODER_DEBUG
     Serial.println("Two Knobs Encoder Test:");
   #endif
@@ -197,6 +347,7 @@ void setup() {
   #ifdef LIGHTING_DEBUG
     Serial.println("Lighting Testing:");
   #endif
+
   //num_buttons over 2 because I have 2 button arrays and each player has half the buttons
   for(int i=0; i<(NUM_BUTTONS/2); i++){
     pinMode(p1_buttons[i], INPUT_PULLUP);
@@ -214,6 +365,9 @@ void setup() {
   Joystick.sliderLeft(512);
   Joystick.sliderRight(512);
 
+  //initialize the rainbow array:
+  set_rainbow(current_rainbow);
+
   //LED Strip Setup
   strip.begin();
   //initialize with the default lighting parameters:
@@ -227,6 +381,7 @@ void loop() {
     //normal controller functions are disabled when in lighting control mode
     update_buttons_LM_select();
     lm_switch();
+    lighting_control();
   }
   else{
     //normal controller operation - keypresses send joystick commands via USB, lighting control runs based on mode last selected.
@@ -253,6 +408,13 @@ void update_buttons(){
       //otherwise set it to pressed
       else if(button_array[i].fallingEdge()){
         Joystick.button(i+1, 1); //+1 because joystick buttons are from 1-32, not 0-31.
+        //these variables are for lighting functions. Make sure to reset them in the lighting mode functions once something has been triggered.
+        if(i <= 8){
+          lm_p1_button_has_been_pressed = true;
+        }
+        else if(i >= 9){
+          lm_p2_button_has_been_pressed = true;
+        }
         #ifdef KEYPRESS_DEBUG
           Serial.print("Pressed ");
           Serial.println(i+1);
@@ -388,6 +550,7 @@ void update_buttons_LM_select(){
     //check for updates on each button
     if(button_array[i].update()){
       if(button_array[i].fallingEdge()){
+        previous_lighting_mode = lighting_mode;
         lighting_mode = i+1;
         #ifdef LIGHTING_DEBUG
           Serial.print("Pressed button and set lighting mode to: ");
@@ -402,7 +565,7 @@ void update_buttons_LM_select(){
 //this is the setup function for lighting. It runs when the control mode button is pressed.
 //it will set the default state of any mode when the appropriate button is pressed.
 void lm_switch(){
-  //still want to have encoders update in case they are to be used in the future to change settings like speed or something while in lighting mode.
+  //still want to have encoders update so effects that use them can be tested while in lighting mode.
   update_encoders();
   //this deals with what happens when buttons are pressed. The cases are defined at the top in the #defines section
   if(lm_has_changed){
@@ -480,6 +643,27 @@ void lm_switch(){
         }
         break;
 
+      case LM_DIRECTIONAL_MARQUEE:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Directional Marquee.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          //increment the color every time a button is pressed.
+          lm_current_color++;
+          //if the color is larger than there are colors, reset it.
+          if(lm_current_color >= num_rainbow_colors){
+            lm_current_color = 0;
+          }
+          //reset the transition step variable to 0 so it will start from the new color:
+          populate_marquee(rainbow[lm_current_color]);
+          lm_current_transition_position = 0;
+          //finally, set the color here. There is no need for further input in this mode during the main loop function.
+          LED_marquee(lm_current_transition_position, BOTH_WIKI);
+          lm_has_changed = false;
+        }
+        break;
+
       case LM_WIKI:
         {
           #ifdef LIGHTING_DEBUG
@@ -520,6 +704,20 @@ void lm_switch(){
         }
         break;
 
+      case LM_RANDOM_RAINBOW:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Random Rainbow.");
+          #endif
+          //reset the transition step variable to 0 so it will start from the new color:
+          lm_current_transition_position = random(LM_SLOW_ROTATE_FRAMES);
+          lm_current_transition_position_2 = random(LM_SLOW_ROTATE_FRAMES);
+          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
+          LED_rainbow(lm_current_transition_position_2, BOTH_WIKI);
+          lm_has_changed = false;
+        }
+        break;
+
         /* re-enable these as they get programmed...
       case LM_COLOR_PULSE:
         {
@@ -543,6 +741,42 @@ void lm_switch(){
         }
         break;
         */
+
+      case LM_RAINBOW_UP:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now RAINBOW_UP.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          current_rainbow++;
+          if(current_rainbow >= num_rainbows){
+            current_rainbow = 0;
+          }
+          set_rainbow(current_rainbow);
+
+          //go back to the old lighting mode
+          lighting_mode = previous_lighting_mode;
+          lm_has_changed = true;
+        }
+        break;
+
+      case LM_RAINBOW_DOWN:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now RAINBOW_DOWN.");
+          #endif
+          //change variables as needed for the default state of this lighting mode:
+          current_rainbow--;
+          if(current_rainbow < 0){
+            current_rainbow = num_rainbows-1;
+          }
+          set_rainbow(current_rainbow);
+
+          //go back to the old lighting mode
+          lighting_mode = previous_lighting_mode;
+          lm_has_changed = true;
+        }
+        break;
 
       case LM_OFF:
         {
@@ -682,6 +916,55 @@ void lighting_control(){
         }
         break;
 
+      case LM_DIRECTIONAL_MARQUEE:
+        {
+          //set p1 directions
+          if(direction_left == POSITIVE){
+            last_p1_direction = NEGATIVE;
+          }
+          else if(direction_left == NEGATIVE){
+            last_p1_direction = POSITIVE;
+          }
+          //increment in the correct direction. Will continue even if the disk stops.
+          if(last_p1_direction == POSITIVE){
+            lm_current_transition_position++;
+            LED_marquee(lm_current_transition_position, P1_WIKI);
+            if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position = 0;
+            }
+          }
+          else if(last_p1_direction == NEGATIVE){
+            lm_current_transition_position--;
+            LED_marquee(lm_current_transition_position, P1_WIKI);
+            if(lm_current_transition_position <= -LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position = 0;
+            }
+          }
+          //set p2 directions
+          if(direction_right == POSITIVE){
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE){
+            last_p2_direction = NEGATIVE;
+          }
+          //increment in the correct direction. Will continue even if the disk stops.
+          if(last_p2_direction == POSITIVE){
+            lm_current_transition_position_2++;
+            LED_marquee(lm_current_transition_position_2, P2_WIKI);
+            if(lm_current_transition_position_2 >= LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position_2 = 0;
+            }
+          }
+          else if(last_p2_direction == NEGATIVE){
+            lm_current_transition_position_2--;
+            LED_marquee(lm_current_transition_position_2, P2_WIKI);
+            if(lm_current_transition_position_2 <= -LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position_2 = 0;
+            }
+          }
+        }
+        break;
+
       case LM_WIKI:
         {
           //first map the wiki position to the frame offset of a typical slow rotate
@@ -704,6 +987,23 @@ void lighting_control(){
         }
         break;
 
+      case LM_RANDOM_RAINBOW:
+        {
+          //increment frames, jump to the next color if rollover occurs:
+          if(lm_p1_button_has_been_pressed){
+            lm_current_transition_position = random(LM_SLOW_ROTATE_FRAMES);
+            lm_p1_button_has_been_pressed = false;
+          }
+          if(lm_p2_button_has_been_pressed){
+            lm_current_transition_position_2 = random(LM_SLOW_ROTATE_FRAMES);
+            lm_p2_button_has_been_pressed = false;
+          }
+
+          LED_rainbow(lm_current_transition_position, P1_WIKI);
+          LED_rainbow(lm_current_transition_position_2, P2_WIKI);
+        }
+        break;
+
         /* re-enable these as they get programmed...
       case LM_COLOR_PULSE:
         {
@@ -717,6 +1017,18 @@ void lighting_control(){
         }
         break;
         */
+      
+      case LM_RAINBOW_UP:
+        {
+        //do nothing
+        }
+        break;
+
+      case LM_RAINBOW_DOWN:
+        {
+        //do nothing
+        }
+        break;
 
       case LM_OFF:
         {
@@ -728,10 +1040,18 @@ void lighting_control(){
   }
 }
 
+//this function switches the rainbow array to a different rainbow, as defined up top.
+void set_rainbow(int num){
+  num_rainbow_colors = rainbows[num].num_colors;
+  for(int i=0; i<num_rainbow_colors; i++){
+    rainbow[i] = rainbows[num].colors[i];
+  }
+}
+
 //This one will set all the LEDs to a single color.
 void LED_single_color(uint32_t color){
   for( int i=0; i<NUM_LEDS; i++){
-    strip.setPixelColor(i, color);
+    strip_setPixelColor(i, color);
   }
   strip.show();
 }
@@ -812,14 +1132,14 @@ void LED_rainbow(int offset, int wiki_select){
         uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
         uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
         if(wiki_select == BOTH_WIKI){
-          strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
-          strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
         }
         else if(wiki_select == P1_WIKI){
-          strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
         }
         else if(wiki_select == P2_WIKI){
-          strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
         }
         else{
           #ifdef LIGHTING_DEBUG
@@ -940,14 +1260,14 @@ void LED_marquee(int offset, int wiki_select){
           uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
           uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
           if(wiki_select == BOTH_WIKI){
-            strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
-            strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
           }
           else if(wiki_select == P1_WIKI){
-            strip.setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
           }
           else if(wiki_select == P2_WIKI){
-            strip.setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
           }
           else{
             #ifdef LIGHTING_DEBUG
@@ -982,3 +1302,4 @@ void LED_marquee(int offset, int wiki_select){
   }
   strip.show();
 }
+
