@@ -75,7 +75,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_NUM_ITERATIONS 5
 
 //this determines color pulse speed
-#define LM_DEGREES_PER_FRAME 10
+#define LM_DEGREES_PER_FRAME 5
 
 //Default position for pulses in degrees. They will always count down to 0 (top of the wheel) from here.
 #define LM_DEFAULT_PULSE_POSITION 180
@@ -760,7 +760,7 @@ void lm_switch(){
           }
           //reset the transition step variable to 0 so it will start from the new color:
           populate_marquee(rainbow[lm_current_color]);
-          //first map the wiki position to the frame offset of a typical slow rotate
+          //first map the wiki position to the frame offset of a typical slow rotate (p1_inverted_due_to_hardware)
           int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
           int p2_offset = map(position_right % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, -LM_SLOW_ROTATE_FRAMES, LM_SLOW_ROTATE_FRAMES);
           //then set the wheel to the rainbow color at that offset
@@ -1255,7 +1255,7 @@ void lighting_control(){
           //set the marquee to the right color:
           populate_marquee(strip.Color(mid_red, mid_green, mid_blue));
 
-          //set p1 directions
+          //set p1 directions - inverted due to hardware for p1
           if(direction_left == POSITIVE){
             last_p1_direction = NEGATIVE;
           }
@@ -1424,14 +1424,36 @@ void lighting_control(){
 
       case LM_RANDOM_RAINBOW:
         {
+          //check of wheels have changed direction to let the thing update one time.
+          bool p1_wheel_has_changed = false;
+          bool p2_wheel_has_changed = false;
+          if(direction_left == POSITIVE && last_p1_direction == NEGATIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = POSITIVE;
+          }
+          else if(direction_left == NEGATIVE && last_p1_direction == POSITIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = NEGATIVE;
+          }
+          if(direction_right == POSITIVE && last_p2_direction == NEGATIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE && last_p2_direction == POSITIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = NEGATIVE;
+          }
+
           //increment frames, jump to the next color if rollover occurs:
-          if(lm_p1_button_has_been_pressed){
+          if(lm_p1_button_has_been_pressed || p1_wheel_has_changed ){
             lm_current_transition_position = random(LM_SLOW_ROTATE_FRAMES);
             lm_p1_button_has_been_pressed = false;
+            p1_wheel_has_changed = false;
           }
-          if(lm_p2_button_has_been_pressed){
+          if(lm_p2_button_has_been_pressed || p2_wheel_has_changed ){
             lm_current_transition_position_2 = random(LM_SLOW_ROTATE_FRAMES);
             lm_p2_button_has_been_pressed = false;
+            p2_wheel_has_changed = false;
           }
 
           LED_rainbow(lm_current_transition_position, P1_WIKI);
@@ -1441,8 +1463,28 @@ void lighting_control(){
 
       case LM_COLOR_PULSE:
         {
+          //check of wheels have changed direction to let the thing update one time.
+          bool p1_wheel_has_changed = false;
+          bool p2_wheel_has_changed = false;
+          if(direction_left == POSITIVE && last_p1_direction == NEGATIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = POSITIVE;
+          }
+          else if(direction_left == NEGATIVE && last_p1_direction == POSITIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = NEGATIVE;
+          }
+          if(direction_right == POSITIVE && last_p2_direction == NEGATIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE && last_p2_direction == POSITIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = NEGATIVE;
+          }
+
           //increment frames, jump to the next color if rollover occurs:
-          if(lm_p1_button_has_been_pressed){
+          if(lm_p1_button_has_been_pressed || p1_wheel_has_changed ){
             //add a color pulse
             cp pulse{
               .color = rainbow[lm_current_color],
@@ -1462,8 +1504,9 @@ void lighting_control(){
             //send the pulse to the array for processing.
             LED_add_color_pulse(pulse);
             lm_p1_button_has_been_pressed = false;
+            p1_wheel_has_changed = false;
           }
-          if(lm_p2_button_has_been_pressed){
+          if(lm_p2_button_has_been_pressed || p2_wheel_has_changed ){
             //add a color pulse
             cp pulse{
               .color = rainbow[lm_current_color],
@@ -1483,6 +1526,7 @@ void lighting_control(){
             //send the pulse to the array for processing.
             LED_add_color_pulse(pulse);
             lm_p2_button_has_been_pressed = false;
+            p2_wheel_has_changed = false;
           }
           LED_color_pulse_refresh(rainbow[lm_current_color]);
         }
@@ -1545,9 +1589,28 @@ void lighting_control(){
           //take the above and make the current color a variable for use below:
           uint32_t mid_color = strip.Color(mid_red, mid_green, mid_blue);
 
-          //increment frames, jump to the next color if rollover occurs:
-          if(lm_p1_button_has_been_pressed){
+          //check of wheels have changed direction to let the thing update one time.
+          bool p1_wheel_has_changed = false;
+          bool p2_wheel_has_changed = false;
+          if(direction_left == POSITIVE && last_p1_direction == NEGATIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = POSITIVE;
+          }
+          else if(direction_left == NEGATIVE && last_p1_direction == POSITIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = NEGATIVE;
+          }
+          if(direction_right == POSITIVE && last_p2_direction == NEGATIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE && last_p2_direction == POSITIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = NEGATIVE;
+          }
 
+          //increment frames, jump to the next color if rollover occurs:
+          if(lm_p1_button_has_been_pressed || p1_wheel_has_changed ){
             //add a color pulse
             cp pulse{
               .color = mid_color,
@@ -1567,8 +1630,9 @@ void lighting_control(){
             //send the pulse to the array for processing.
             LED_add_color_pulse(pulse);
             lm_p1_button_has_been_pressed = false;
+            p1_wheel_has_changed = false;
           }
-          if(lm_p2_button_has_been_pressed){
+          if(lm_p2_button_has_been_pressed || p2_wheel_has_changed ){
             //add a color pulse
             cp pulse{
               .color = mid_color,
@@ -1588,6 +1652,7 @@ void lighting_control(){
             //send the pulse to the array for processing.
             LED_add_color_pulse(pulse);
             lm_p2_button_has_been_pressed = false;
+            p2_wheel_has_changed = false;
           }
           //refresh so the animation keeps updating
           LED_color_pulse_refresh(mid_color);
@@ -1661,8 +1726,28 @@ void lighting_control(){
           //take the above and make the current color a variable for use below:
           uint32_t mid_color = strip.Color(mid_red, mid_green, mid_blue);
 
+          //check of wheels have changed direction to let the thing update one time.
+          bool p1_wheel_has_changed = false;
+          bool p2_wheel_has_changed = false;
+          if(direction_left == POSITIVE && last_p1_direction == NEGATIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = POSITIVE;
+          }
+          else if(direction_left == NEGATIVE && last_p1_direction == POSITIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = NEGATIVE;
+          }
+          if(direction_right == POSITIVE && last_p2_direction == NEGATIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE && last_p2_direction == POSITIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = NEGATIVE;
+          }
+
           //increment frames, jump to the next color if rollover occurs:
-          if(lm_p1_button_has_been_pressed){
+          if(lm_p1_button_has_been_pressed || p1_wheel_has_changed ){
             //increment the color every time a button is pressed.
             lm_current_color++;
             //if the color is larger than there are colors, reset it.
@@ -1697,8 +1782,9 @@ void lighting_control(){
             //send the pulse to the array for processing.
             LED_add_color_pulse(pulse);
             lm_p1_button_has_been_pressed = false;
+            p1_wheel_has_changed = false;
           }
-          if(lm_p2_button_has_been_pressed){
+          if(lm_p2_button_has_been_pressed || p2_wheel_has_changed ){
             //increment the color every time a button is pressed.
             lm_current_color++;
             //if the color is larger than there are colors, reset it.
@@ -1733,6 +1819,7 @@ void lighting_control(){
             //send the pulse to the array for processing.
             LED_add_color_pulse(pulse);
             lm_p2_button_has_been_pressed = false;
+            p2_wheel_has_changed = false;
           }
           LED_color_pulse_refresh(mid_color);
 
