@@ -62,8 +62,11 @@ It is designed to run as a joystick, and as such this options must be selected a
 
 //Variables for the number of frames per animation. The lighting runs at approximately 60fps with LIGHTING_REFRESH_DELAY set to 15.
 #define LM_SLOW_FADE_FRAMES 100
+#define LM_MARQUEE_FADE_FRAMES 150
 #define LM_SLOW_ROTATE_FRAMES 300
 #define LM_COLOR_PULSE_FRAMES 30
+
+//this is how many frames before the marquee jumps to the next 'node'
 #define LM_MARQUEE_FRAMES 15
 
 //this scaling factor allows for smoother transitions around the edges on slow_rotate style animations. The integer math rounding makes abrupt changes otherwise
@@ -110,8 +113,8 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_SLOW_ROTATE 10
 //random_rainbow - this jumps the rainbow to a random position whenever a button is pressed.
 #define LM_RANDOM_RAINBOW 12
-//Mode 14
-
+//Mode 14 - for the future, tentatively reserved for external input lighting control via USB serial or other.
+#define LM_EXT 14
 //Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
 #define LM_OFF 16
 
@@ -306,7 +309,7 @@ rainbow rX = {
 //initialize one rainbows array to hold all the rainbows:
 rainbow rainbows[MAX_NUM_RAINBOWS] = {r1, r2, r3, r4, r5, r6};
 int num_rainbows = 6;
-int current_rainbow = 0;
+int current_rainbow = 1;
 
 //Initialize the rainbow array to be the same size as the other arrays above. It will be set in the setup function and adjusted in the remaining program.
 uint32_t rainbow[MAX_RAINBOW_COLORS];
@@ -1200,7 +1203,7 @@ void lighting_control(){
       case LM_MARQUEE_SLOW_FADE:
         {
           //update colors first:
-          //set the color to a step between the current color and the next in the loop, based on how far along the LM_SLOW_FADE_FRAMES position.
+          //set the color to a step between the current color and the next in the loop, based on how far along the LM_MARQUEE_FADE_FRAMES position.
           //set variable for mapping
           uint32_t current_color = rainbow[lm_current_color];
           uint32_t next_color = 0;
@@ -1217,15 +1220,15 @@ void lighting_control(){
           uint32_t next_red = (uint8_t)(next_color >> 16);
           uint32_t next_green = (uint8_t)(next_color >> 8);
           uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
+          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
+          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
+          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
           //check to see if the mid color is 'off' and increment until it is no longer off.
           while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_marquee_color_position++;
-            if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+            if(lm_current_marquee_color_position >= LM_MARQUEE_FADE_FRAMES){
               lm_current_marquee_color_position = 0;
               lm_current_color++;
               if(lm_current_color >= num_rainbow_colors){
@@ -1245,10 +1248,10 @@ void lighting_control(){
             next_red = (uint8_t)(next_color >> 16);
             next_green = (uint8_t)(next_color >> 8);
             next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-            mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+            //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
+            mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
+            mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
+            mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
                         
           }
 
@@ -1302,7 +1305,7 @@ void lighting_control(){
 
           //increment frames, jump to the next color if rollover occurs:
           lm_current_marquee_color_position++;
-          if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+          if(lm_current_marquee_color_position >= LM_MARQUEE_FADE_FRAMES){
             lm_current_marquee_color_position = 0;
             lm_current_color++;
             if(lm_current_color >= num_rainbow_colors){
@@ -1326,7 +1329,7 @@ void lighting_control(){
       case LM_WIKI_SLOW_FADE:
         {
           //update colors first:
-          //set the color to a step between the current color and the next in the loop, based on how far along the LM_SLOW_FADE_FRAMES position.
+          //set the color to a step between the current color and the next in the loop, based on how far along the LM_MARQUEE_FADE_FRAMES position.
           //set variable for mapping
           uint32_t current_color = rainbow[lm_current_color];
           uint32_t next_color = 0;
@@ -1343,15 +1346,15 @@ void lighting_control(){
           uint32_t next_red = (uint8_t)(next_color >> 16);
           uint32_t next_green = (uint8_t)(next_color >> 8);
           uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
+          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
+          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
+          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
           //check to see if the mid color is 'off' and increment until it is no longer off.
           while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_marquee_color_position++;
-            if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+            if(lm_current_marquee_color_position >= LM_MARQUEE_FADE_FRAMES){
               lm_current_marquee_color_position = 0;
               lm_current_color++;
               if(lm_current_color >= num_rainbow_colors){
@@ -1371,10 +1374,10 @@ void lighting_control(){
             next_red = (uint8_t)(next_color >> 16);
             next_green = (uint8_t)(next_color >> 8);
             next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-            mid_red = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_marquee_color_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+            //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
+            mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
+            mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
+            mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
                         
           }
 
@@ -1390,7 +1393,7 @@ void lighting_control(){
 
           //increment frames, jump to the next color if rollover occurs:
           lm_current_marquee_color_position++;
-          if(lm_current_marquee_color_position >= LM_SLOW_FADE_FRAMES){
+          if(lm_current_marquee_color_position >= LM_MARQUEE_FADE_FRAMES){
             lm_current_marquee_color_position = 0;
             lm_current_color++;
             if(lm_current_color >= num_rainbow_colors){
