@@ -269,6 +269,8 @@ rainbow r4 = {
   .num_colors = 6
 };
 
+//red green and blue
+
 //blue and white
 
 //red and white
@@ -342,22 +344,23 @@ int num_marquee_positions = (LM_NUM_ON+LM_NUM_OFF)*LM_NUM_ITERATIONS;
 
 //a color correction table for the neopixel color settings:
 const uint8_t PROGMEM gamma8[] = {
-        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-        0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
-        1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
-        2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
-        5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
-       10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
-       17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
-       25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
-       37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
-       51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
-       69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
-       90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
-      115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
-      144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
-      177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
-      215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
+  1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
+  2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
+  5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
+  10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+  17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+  25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+  37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+  51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+  69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+  90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
+  115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+  144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+  177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+  215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 
+};
 
 //this is a variable for avoiding setting colors to be off based on the start of this table being mostly off. 
 //It's still pretty rough near the low end with 8-bit colors. Not much I can do about it currently.
@@ -1063,6 +1066,9 @@ void lm_switch(){
           //this mode just presses the enter key on the teensy's USB keyboard driver.
           Keyboard.press(KEY_ENTER);
           Keyboard.release(KEY_ENTER);
+
+          //go back to the old lighting mode
+          lighting_mode = previous_lighting_mode;
           lm_has_changed = false;
         }
         break;
@@ -1076,6 +1082,9 @@ void lm_switch(){
           Keyboard.press(KEY_5);
           Keyboard.release(MODIFIERKEY_GUI);
           Keyboard.release(KEY_5);
+
+          //go back to the old lighting mode
+          lighting_mode = previous_lighting_mode;
           lm_has_changed = false;
         }
         break;
@@ -1994,7 +2003,7 @@ bool is_gc_color_off(uint32_t color){
   }
 }
 
-//This one will set all the LEDs to a single color.
+//This one will set all the LEDs to a single color on either or both wikis.
 void LED_single_color(uint32_t color, int wiki){
   if(wiki == P1_WIKI){
     for( int i=0; i<NUM_LEDS/2; i++){
