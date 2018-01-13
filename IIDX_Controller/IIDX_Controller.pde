@@ -78,7 +78,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_NUM_ITERATIONS 5
 
 //this determines color pulse speed
-#define LM_DEGREES_PER_FRAME 5
+#define LM_DEGREES_PER_FRAME 15
 
 //Default position for pulses in degrees. They will always count down to 0 (top of the wheel) from here.
 #define LM_DEFAULT_PULSE_POSITION 180
@@ -113,8 +113,8 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define LM_SLOW_ROTATE 10
 //random_rainbow - this jumps the rainbow to a random position whenever a button is pressed.
 #define LM_RANDOM_RAINBOW 12
-//Mode 14 - for the future, tentatively reserved for external input lighting control via USB serial or other.
-#define LM_EXT 14
+//Random_Color - this will pick a random rainbow color and set the whole side to it on a button press.
+#define LM_RANDOM_COLOR 14
 //Off - this will turn off all wiki lighting, but still allow for button lighting if the power is plugged in.
 #define LM_OFF 16
 
@@ -213,95 +213,117 @@ struct cp {
 //these are the various 'rainbows' that can be swapped between for color selection on rainbow functions
 //rainbow1 is the traditional roygbiv rainbow pattern
 rainbow r1 = {
-  .colors = {strip.Color(255,   0,   0),
-             strip.Color(255, 255,   0),
-             strip.Color(  0, 255,   0),
-             strip.Color(  0, 255, 255),
-             strip.Color(  0,   0, 255),
-             strip.Color(255,   0, 255)},
+  .colors = {
+    strip.Color(255,   0,   0),
+    strip.Color(255, 255,   0),
+    strip.Color(  0, 255,   0),
+    strip.Color(  0, 255, 255),
+    strip.Color(  0,   0, 255),
+    strip.Color(255,   0, 255)
+  },
   .num_colors = 6
 };
 
 //rainbow r2 is a double rainbow of r1
 rainbow r2 = {
-  .colors = { strip.Color(255,   0,   0),
-              strip.Color(255, 255,   0),
-              strip.Color(  0, 255,   0),
-              strip.Color(  0, 255, 255),
-              strip.Color(  0,   0, 255),
-              strip.Color(255,   0, 255),
-              strip.Color(255,   0,   0),
-              strip.Color(255, 255,   0),
-              strip.Color(  0, 255,   0),
-              strip.Color(  0, 255, 255),
-              strip.Color(  0,   0, 255),
-              strip.Color(255,   0, 255)},
+  .colors = { 
+    strip.Color(255,   0,   0),
+    strip.Color(255, 255,   0),
+    strip.Color(  0, 255,   0),
+    strip.Color(  0, 255, 255),
+    strip.Color(  0,   0, 255),
+    strip.Color(255,   0, 255),
+    strip.Color(255,   0,   0),
+    strip.Color(255, 255,   0),
+    strip.Color(  0, 255,   0),
+    strip.Color(  0, 255, 255),
+    strip.Color(  0,   0, 255),
+    strip.Color(255,   0, 255)
+  },
   .num_colors = 12
 };
 
 //the primary colors red, blue and yellow:
 rainbow r3 = {
-  .colors = { strip.Color(255, 0, 0),
-              off,
-              strip.Color(255, 255, 0), 
-              off,
-              strip.Color(0, 0, 255),
-              off},
+  .colors = { 
+    strip.Color(255, 0, 0),
+    off,
+    strip.Color(255, 255, 0), 
+    off,
+    strip.Color(0, 0, 255),
+    off
+  },
   .num_colors = 6
 };
 
 //the secondary colors orange, green and purple:
 rainbow r4 = {
-  .colors = { off,
-              strip.Color(255, 127, 0),
-              off,
-              strip.Color(0, 255, 0), 
-              off,
-              strip.Color(255, 0, 255)},
+  .colors = { 
+    off,
+    strip.Color(255, 127, 0),
+    off,
+    strip.Color(0, 255, 0), 
+    off,
+    strip.Color(255, 0, 255)
+  },
   .num_colors = 6
 };
 
+//blue and white
+
+//red and white
+
+//red and black
+
+//yellow and black
+
 //purplish color scheme
 rainbow r5 = {
-  .colors = { strip.Color(255,1,252), 
-              strip.Color(202, 1, 255), 
-              strip.Color(127,1,231), 
-              strip.Color(89,18,208), 
-              strip.Color(52,34,176), 
-              strip.Color(44,50,135),
-              strip.Color(255,1,252), 
-              strip.Color(202, 1, 255), 
-              strip.Color(127,1,231), 
-              strip.Color(89,18,208), 
-              strip.Color(52,34,176), 
-              strip.Color(44,50,135)},
+  .colors = { 
+    strip.Color(255,1,252), 
+    strip.Color(202, 1, 255), 
+    strip.Color(127,1,231), 
+    strip.Color(89,18,208), 
+    strip.Color(52,34,176), 
+    strip.Color(44,50,135),
+    strip.Color(255,1,252), 
+    strip.Color(202, 1, 255), 
+    strip.Color(127,1,231), 
+    strip.Color(89,18,208), 
+    strip.Color(52,34,176), 
+    strip.Color(44,50,135)
+  },
   .num_colors = 12
 };
 //red and orange and yellow color scheme
 rainbow r6 = {
-  .colors = { strip.Color(204,0,102), 
-              strip.Color(213,37,83), 
-              strip.Color(223,74,65), 
-              strip.Color(232,111,46), 
-              strip.Color(241,148,28), 
-              strip.Color(255,204,0),
-              strip.Color(204,0,102), 
-              strip.Color(213,37,83), 
-              strip.Color(223,74,65), 
-              strip.Color(232,111,46), 
-              strip.Color(241,148,28), 
-              strip.Color(255,204,0)},
+  .colors = { 
+    strip.Color(204,0,102), 
+    strip.Color(213,37,83), 
+    strip.Color(223,74,65), 
+    strip.Color(232,111,46), 
+    strip.Color(241,148,28), 
+    strip.Color(255,204,0),
+    strip.Color(204,0,102), 
+    strip.Color(213,37,83), 
+    strip.Color(223,74,65), 
+    strip.Color(232,111,46), 
+    strip.Color(241,148,28), 
+    strip.Color(255,204,0)
+  },
   .num_colors = 12
 };
 
 /* - Default rainbow template to copy.
 rainbow rX = {
-  .colors = { strip.Color(), 
-              strip.Color(), 
-              strip.Color(), 
-              strip.Color(), 
-              strip.Color(), 
-              strip.Color()},
+  .colors = { 
+    strip.Color(), 
+    strip.Color(), 
+    strip.Color(), 
+    strip.Color(), 
+    strip.Color(), 
+    strip.Color()
+  },
   .num_colors = 6
 };
 */
@@ -646,7 +668,7 @@ void lm_switch(){
             }
           }
           //finally, set the color here. There is no need for further input in this mode during the main loop function.
-          LED_single_color(rainbow[lm_current_color]);
+          LED_single_color(rainbow[lm_current_color], BOTH_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -676,7 +698,7 @@ void lm_switch(){
           //reset the transition step variable to 0 so it will start from the new color:
           lm_current_transition_position = 0;
           //finally, set the color here. There is no need for further input in this mode during the main loop function.
-          LED_single_color(rainbow[lm_current_color]);
+          LED_single_color(rainbow[lm_current_color], BOTH_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -843,8 +865,28 @@ void lm_switch(){
           //reset the transition step variable to 0 so it will start from the new color:
           lm_current_transition_position = random(LM_SLOW_ROTATE_FRAMES);
           lm_current_transition_position_2 = random(LM_SLOW_ROTATE_FRAMES);
-          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
-          LED_rainbow(lm_current_transition_position_2, BOTH_WIKI);
+          LED_rainbow(lm_current_transition_position, P1_WIKI);
+          LED_rainbow(lm_current_transition_position_2, P2_WIKI);
+          lm_has_changed = false;
+        }
+        break;
+
+      case LM_RANDOM_COLOR:
+        {
+          #ifdef LIGHTING_DEBUG
+            Serial.println("Lighting Mode is now Random Color.");
+          #endif
+          //reset the transition step variable to 0 so it will start from the new color:
+          int last_position = lm_current_transition_position;
+          int last_position_2 = lm_current_transition_position_2;
+          while(rainbow[last_position] == rainbow[lm_current_transition_position] || rainbow[lm_current_transition_position] == off){
+            lm_current_transition_position = random(num_rainbow_colors);
+          }
+          while(rainbow[last_position_2] == rainbow[lm_current_transition_position_2] || rainbow[lm_current_transition_position_2] == off){
+            lm_current_transition_position_2 = random(num_rainbow_colors);
+          }
+          LED_single_color(rainbow[lm_current_transition_position], P1_WIKI);
+          LED_single_color(rainbow[lm_current_transition_position_2], P2_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -1009,7 +1051,7 @@ void lm_switch(){
             Serial.println("Lighting Mode is now off.");
           #endif
           //change variables as needed for the default state of this lighting mode:
-          LED_single_color(off);
+          LED_single_color(off, BOTH_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -1070,7 +1112,7 @@ void lighting_control(){
       case LM_SOLID:
         {
           //set the color every time anyways, in case the lighting power was interrupted.
-          LED_single_color(rainbow[lm_current_color]);
+          LED_single_color(rainbow[lm_current_color], BOTH_WIKI);
         }
         break;
 
@@ -1128,7 +1170,7 @@ void lighting_control(){
                         
           }
           //set the color:
-          LED_single_color(strip.Color(mid_red, mid_green, mid_blue));
+          LED_single_color(strip.Color(mid_red, mid_green, mid_blue), BOTH_WIKI);
           #ifdef LIGHTING_DEBUG
             /* only uncomment if needed. Too spammy.
             Serial.print("Red: ");
@@ -1461,6 +1503,51 @@ void lighting_control(){
 
           LED_rainbow(lm_current_transition_position, P1_WIKI);
           LED_rainbow(lm_current_transition_position_2, P2_WIKI);
+        }
+        break;
+
+      case LM_RANDOM_COLOR:
+        {
+          //check of wheels have changed direction to let the thing update one time.
+          bool p1_wheel_has_changed = false;
+          bool p2_wheel_has_changed = false;
+          if(direction_left == POSITIVE && last_p1_direction == NEGATIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = POSITIVE;
+          }
+          else if(direction_left == NEGATIVE && last_p1_direction == POSITIVE){
+            p1_wheel_has_changed = true;
+            last_p1_direction = NEGATIVE;
+          }
+          if(direction_right == POSITIVE && last_p2_direction == NEGATIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE && last_p2_direction == POSITIVE){
+            p2_wheel_has_changed = true;
+            last_p2_direction = NEGATIVE;
+          }
+
+          //increment frames, jump to the next color if rollover occurs:
+          if(lm_p1_button_has_been_pressed || p1_wheel_has_changed ){
+            int last_position = lm_current_transition_position;
+            while(rainbow[last_position] == rainbow[lm_current_transition_position] || rainbow[lm_current_transition_position] == off){
+              lm_current_transition_position = random(num_rainbow_colors);
+            }
+            lm_p1_button_has_been_pressed = false;
+            p1_wheel_has_changed = false;
+          }
+          if(lm_p2_button_has_been_pressed || p2_wheel_has_changed ){
+            int last_position_2 = lm_current_transition_position_2;
+            while(rainbow[last_position_2] == rainbow[lm_current_transition_position_2] || rainbow[lm_current_transition_position_2] == off){
+              lm_current_transition_position_2 = random(num_rainbow_colors);
+            }
+            lm_p2_button_has_been_pressed = false;
+            p2_wheel_has_changed = false;
+          }
+
+          LED_single_color(rainbow[lm_current_transition_position], P1_WIKI);
+          LED_single_color(rainbow[lm_current_transition_position_2], P2_WIKI);
         }
         break;
 
@@ -1861,7 +1948,7 @@ void lighting_control(){
       case LM_OFF:
         {
           //set the color every time anyways, in case the lighting power was interrupted.
-          LED_single_color(off);
+          LED_single_color(off, BOTH_WIKI);
         }
         break;
     }
@@ -1908,9 +1995,21 @@ bool is_gc_color_off(uint32_t color){
 }
 
 //This one will set all the LEDs to a single color.
-void LED_single_color(uint32_t color){
-  for( int i=0; i<NUM_LEDS; i++){
-    strip_setPixelColor(i, color);
+void LED_single_color(uint32_t color, int wiki){
+  if(wiki == P1_WIKI){
+    for( int i=0; i<NUM_LEDS/2; i++){
+      strip_setPixelColor(i, color);
+    }
+  }
+  else if(wiki == P2_WIKI){
+    for( int i=0; i<NUM_LEDS/2; i++){
+      strip_setPixelColor(i+NUM_LEDS/2, color);
+    }
+  }
+  else if(wiki == BOTH_WIKI){
+    for( int i=0; i<NUM_LEDS; i++){
+      strip_setPixelColor(i, color);
+    }
   }
   strip.show();
 }
@@ -2204,7 +2303,7 @@ void LED_remove_color_pulses(){
 //this will parse through the pulse_array and increment all pulses by LM_DEGREES_PER_FRAME whenever called, pruning those needed, and update the display.
 void LED_color_pulse_refresh(uint32_t current_color){
   //always start with a blank array, repopulate it, and then show the strip at the end.
-  LED_single_color(off);
+  LED_single_color(off, BOTH_WIKI);
   //iterate through the pulse array and update all the pulses
   for(int i=0; i<lm_num_active_pulses; i++){
     pulse_array[i].position = pulse_array[i].position - LM_DEGREES_PER_FRAME;
