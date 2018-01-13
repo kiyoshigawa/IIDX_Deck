@@ -187,8 +187,17 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(58, lighting_control_pin, NEO_GRB + 
 
 //named color definitions:
 uint32_t red = strip.Color(255, 0, 0);
+uint32_t orange = strip.Color(255, 127, 0);
+uint32_t yellow = strip.Color(255, 255, 0);
+uint32_t yellow_green = strip.Color(127, 255, 0);
 uint32_t green = strip.Color(0, 255, 0);
+uint32_t green_blue = strip.Color(0, 255, 127);
+uint32_t sky_blue = strip.Color(0, 255, 255);
+uint32_t deep_blue = strip.Color(0, 127, 255);
 uint32_t blue = strip.Color(0, 0, 255);
+uint32_t purple_blue = strip.Color(127, 0, 255);
+uint32_t purple = strip.Color(255, 0, 255);
+uint32_t dark_purple = strip.Color(255, 0, 127);
 
 uint32_t off = strip.Color(0, 0, 0);
 
@@ -214,12 +223,12 @@ struct cp {
 //rainbow1 is the traditional roygbiv rainbow pattern
 rainbow r1 = {
   .colors = {
-    strip.Color(255,   0,   0),
-    strip.Color(255, 255,   0),
-    strip.Color(  0, 255,   0),
-    strip.Color(  0, 255, 255),
-    strip.Color(  0,   0, 255),
-    strip.Color(255,   0, 255)
+    red,
+    yellow,
+    green,
+    sky_blue,
+    blue,
+    purple
   },
   .num_colors = 6
 };
@@ -227,18 +236,17 @@ rainbow r1 = {
 //rainbow r2 is a double rainbow of r1
 rainbow r2 = {
   .colors = { 
-    strip.Color(255,   0,   0),
-    strip.Color(255, 255,   0),
-    strip.Color(  0, 255,   0),
-    strip.Color(  0, 255, 255),
-    strip.Color(  0,   0, 255),
-    strip.Color(255,   0, 255),
-    strip.Color(255,   0,   0),
-    strip.Color(255, 255,   0),
-    strip.Color(  0, 255,   0),
-    strip.Color(  0, 255, 255),
-    strip.Color(  0,   0, 255),
-    strip.Color(255,   0, 255)
+    red,
+    yellow,
+    green,
+    sky_blue,
+    blue,
+    purple,
+    yellow,
+    green,
+    sky_blue,
+    blue,
+    purple
   },
   .num_colors = 12
 };
@@ -246,11 +254,11 @@ rainbow r2 = {
 //the primary colors red, blue and yellow:
 rainbow r3 = {
   .colors = { 
-    strip.Color(255, 0, 0),
+    red,
     off,
-    strip.Color(255, 255, 0), 
+    yellow, 
     off,
-    strip.Color(0, 0, 255),
+    blue,
     off
   },
   .num_colors = 6
@@ -260,27 +268,75 @@ rainbow r3 = {
 rainbow r4 = {
   .colors = { 
     off,
-    strip.Color(255, 127, 0),
+    orange,
     off,
-    strip.Color(0, 255, 0), 
+    green, 
     off,
-    strip.Color(255, 0, 255)
+    purple
   },
   .num_colors = 6
 };
 
 //red green and blue
+rainbow r5 = {
+  .colors = { 
+    off,
+    red,
+    off,
+    green, 
+    off,
+    blue
+  },
+  .num_colors = 6
+};
 
-//blue and white
+//blue and yellow
+rainbow r6 = {
+  .colors = { 
+    off,
+    yellow,
+    off,
+    blue,
+    off,
+    yellow,
+    off,
+    blue
+  },
+  .num_colors = 8
+};
 
-//red and white
+//red and sky_blue
+rainbow r7 = {
+  .colors = { 
+    off,
+    red,
+    off,
+    sky_blue,
+    off,
+    red,
+    off,
+    sky_blue
+  },
+  .num_colors = 8
+};
 
-//red and black
-
-//yellow and black
+//Orange and deep_blue
+rainbow r8 = {
+  .colors = { 
+    off,
+    orange,
+    off,
+    deep_blue,
+    off,
+    orange,
+    off,
+    deep_blue
+  },
+  .num_colors = 8
+};
 
 //purplish color scheme
-rainbow r5 = {
+rainbow r9 = {
   .colors = { 
     strip.Color(255,1,252), 
     strip.Color(202, 1, 255), 
@@ -298,7 +354,7 @@ rainbow r5 = {
   .num_colors = 12
 };
 //red and orange and yellow color scheme
-rainbow r6 = {
+rainbow r10 = {
   .colors = { 
     strip.Color(204,0,102), 
     strip.Color(213,37,83), 
@@ -317,7 +373,7 @@ rainbow r6 = {
 };
 
 /* - Default rainbow template to copy.
-rainbow rX = {
+rainbow rXX = {
   .colors = { 
     strip.Color(), 
     strip.Color(), 
@@ -331,8 +387,8 @@ rainbow rX = {
 */
 
 //initialize one rainbows array to hold all the rainbows:
-rainbow rainbows[MAX_NUM_RAINBOWS] = {r1, r2, r3, r4, r5, r6};
-int num_rainbows = 6;
+rainbow rainbows[MAX_NUM_RAINBOWS] = {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10};
+int num_rainbows = 10;
 int current_rainbow = 1;
 
 //Initialize the rainbow array to be the same size as the other arrays above. It will be set in the setup function and adjusted in the remaining program.
@@ -855,7 +911,9 @@ void lm_switch(){
           #endif
           //reset the transition step variable to 0 so it will start from the new color:
           lm_current_transition_position = 0;
-          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
+          lm_current_transition_position_2 = 0;
+          LED_rainbow(lm_current_transition_position, P1_WIKI);
+          LED_rainbow(lm_current_transition_position_2, P2_WIKI);
           lm_has_changed = false;
         }
         break;
@@ -1467,11 +1525,49 @@ void lighting_control(){
 
       case LM_SLOW_ROTATE:
         {
-          //increment frames, jump to the next color if rollover occurs:
-          lm_current_transition_position++;
-          LED_rainbow(lm_current_transition_position, BOTH_WIKI);
-          if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
-            lm_current_transition_position = 0;
+          //set p1 directions
+          if(direction_left == POSITIVE){
+            last_p1_direction = NEGATIVE;
+          }
+          else if(direction_left == NEGATIVE){
+            last_p1_direction = POSITIVE;
+          }
+          //increment in the correct direction. Will continue even if the disk stops.
+          if(last_p1_direction == POSITIVE){
+            lm_current_transition_position++;
+            LED_rainbow(lm_current_transition_position, P1_WIKI);
+            if(lm_current_transition_position >= LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position = 0;
+            }
+          }
+          else if(last_p1_direction == NEGATIVE){
+            lm_current_transition_position--;
+            LED_rainbow(lm_current_transition_position, P1_WIKI);
+            if(lm_current_transition_position <= -LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position = 0;
+            }
+          }
+          //set p2 directions
+          if(direction_right == POSITIVE){
+            last_p2_direction = POSITIVE;
+          }
+          else if(direction_right == NEGATIVE){
+            last_p2_direction = NEGATIVE;
+          }
+          //increment in the correct direction. Will continue even if the disk stops.
+          if(last_p2_direction == POSITIVE){
+            lm_current_transition_position_2++;
+            LED_rainbow(lm_current_transition_position_2, P2_WIKI);
+            if(lm_current_transition_position_2 >= LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position_2 = 0;
+            }
+          }
+          else if(last_p2_direction == NEGATIVE){
+            lm_current_transition_position_2--;
+            LED_rainbow(lm_current_transition_position_2, P2_WIKI);
+            if(lm_current_transition_position_2 <= -LM_SLOW_ROTATE_FRAMES){
+              lm_current_transition_position_2 = 0;
+            }
           }
         }
         break;
@@ -2209,7 +2305,8 @@ void LED_marquee(int offset, int wiki_select){
           corrected_led = led - (NUM_LEDS/2);
         }
         //set the colors once the positions are corrected only on the LM_MARQUEE_FRAMESth frame
-        if((offset%LM_MARQUEE_FRAMES) == 0 || lighting_mode == LM_WIKI || lighting_mode == LM_WIKI_SLOW_FADE){
+        //using lm_current_transition_position instead of offset in the modulus if statement to get both wheels to move at the same time.
+        if((lm_current_transition_position%LM_MARQUEE_FRAMES) == 0 || lighting_mode == LM_WIKI || lighting_mode == LM_WIKI_SLOW_FADE){
           uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
           uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
           uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
