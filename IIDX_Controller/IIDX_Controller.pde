@@ -29,7 +29,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 #define RIGHT 1
 
 //this is the most numbers a 'rainbow' can have for fades and color selection.
-#define MAX_RAINBOW_COLORS 29
+#define MAX_RAINBOW_COLORS 27
 #define MAX_NUM_RAINBOWS 50
 
 //set this to a number of milliseconds to wait for a serial connection before continuing with normal setep.
@@ -185,28 +185,6 @@ Encoder knobRight(right_knob_pin_a, right_knob_pin_b);
 //NeoPixel Object
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(58, lighting_control_pin, NEO_GRB + NEO_KHZ800);
 
-//named color definitions:
-uint32_t red = strip.Color(255, 0, 0);
-uint32_t orange = strip.Color(255, 127, 0);
-uint32_t yellow = strip.Color(255, 255, 0);
-uint32_t yellow_green = strip.Color(127, 255, 0);
-uint32_t green = strip.Color(0, 255, 0);
-uint32_t green_blue = strip.Color(0, 255, 127);
-uint32_t sky_blue = strip.Color(0, 255, 255);
-uint32_t deep_blue = strip.Color(0, 127, 255);
-uint32_t blue = strip.Color(0, 0, 255);
-uint32_t purple_blue = strip.Color(127, 0, 255);
-uint32_t purple = strip.Color(255, 0, 255);
-uint32_t dark_purple = strip.Color(255, 0, 127);
-
-uint32_t off = strip.Color(0, 0, 0);
-
-//a structure for holding rainbows called rainbow:
-struct rainbow {
-  uint32_t colors[MAX_RAINBOW_COLORS];
-  int num_colors;
-};
-
 //a structure for holding color pulses for the color_pulse line of lighting animations
 struct cp {
   //color of the pulse
@@ -219,176 +197,13 @@ struct cp {
   int side;
 };
 
-//these are the various 'rainbows' that can be swapped between for color selection on rainbow functions
-//rainbow1 is the traditional roygbiv rainbow pattern
-rainbow r1 = {
-  .colors = {
-    red,
-    yellow,
-    green,
-    sky_blue,
-    blue,
-    purple
-  },
-  .num_colors = 6
-};
-
-//rainbow r2 is a double rainbow of r1
-rainbow r2 = {
-  .colors = { 
-    red,
-    yellow,
-    green,
-    sky_blue,
-    blue,
-    purple,
-    yellow,
-    green,
-    sky_blue,
-    blue,
-    purple
-  },
-  .num_colors = 12
-};
-
-//the primary colors red, blue and yellow:
-rainbow r3 = {
-  .colors = { 
-    red,
-    off,
-    yellow, 
-    off,
-    blue,
-    off
-  },
-  .num_colors = 6
-};
-
-//the secondary colors orange, green and purple:
-rainbow r4 = {
-  .colors = { 
-    off,
-    orange,
-    off,
-    green, 
-    off,
-    purple
-  },
-  .num_colors = 6
-};
-
-//red green and blue
-rainbow r5 = {
-  .colors = { 
-    off,
-    red,
-    off,
-    green, 
-    off,
-    blue
-  },
-  .num_colors = 6
-};
-
-//blue and yellow
-rainbow r6 = {
-  .colors = { 
-    off,
-    yellow,
-    off,
-    blue,
-    off,
-    yellow,
-    off,
-    blue
-  },
-  .num_colors = 8
-};
-
-//red and sky_blue
-rainbow r7 = {
-  .colors = { 
-    off,
-    red,
-    off,
-    sky_blue,
-    off,
-    red,
-    off,
-    sky_blue
-  },
-  .num_colors = 8
-};
-
-//Orange and deep_blue
-rainbow r8 = {
-  .colors = { 
-    off,
-    orange,
-    off,
-    deep_blue,
-    off,
-    orange,
-    off,
-    deep_blue
-  },
-  .num_colors = 8
-};
-
-//purplish color scheme
-rainbow r9 = {
-  .colors = { 
-    strip.Color(255,1,252), 
-    strip.Color(202, 1, 255), 
-    strip.Color(127,1,231), 
-    strip.Color(89,18,208), 
-    strip.Color(52,34,176), 
-    strip.Color(44,50,135),
-    strip.Color(255,1,252), 
-    strip.Color(202, 1, 255), 
-    strip.Color(127,1,231), 
-    strip.Color(89,18,208), 
-    strip.Color(52,34,176), 
-    strip.Color(44,50,135)
-  },
-  .num_colors = 12
-};
-//red and orange and yellow color scheme
-rainbow r10 = {
-  .colors = { 
-    strip.Color(204,0,102), 
-    strip.Color(213,37,83), 
-    strip.Color(223,74,65), 
-    strip.Color(232,111,46), 
-    strip.Color(241,148,28), 
-    strip.Color(255,204,0),
-    strip.Color(204,0,102), 
-    strip.Color(213,37,83), 
-    strip.Color(223,74,65), 
-    strip.Color(232,111,46), 
-    strip.Color(241,148,28), 
-    strip.Color(255,204,0)
-  },
-  .num_colors = 12
-};
-
-/* - Default rainbow template to copy.
-rainbow rXX = {
-  .colors = { 
-    strip.Color(), 
-    strip.Color(), 
-    strip.Color(), 
-    strip.Color(), 
-    strip.Color(), 
-    strip.Color()
-  },
-  .num_colors = 6
-};
-*/
+//moved color defines to another file, included below:
+#include "colors.h"
 
 //initialize one rainbows array to hold all the rainbows:
-rainbow rainbows[MAX_NUM_RAINBOWS] = {r1, r2, r3, r4, r5, r6, r7, r8, r9, r10};
-int num_rainbows = 10;
+rainbow rainbows[MAX_NUM_RAINBOWS] = {r1, r2, r3, r4, r5, r6, r7, r8, r25, r26, r27, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21, r22, r23, r24};
+int num_rainbows = 27;
+//random rainbow on startup
 int current_rainbow = 1;
 
 //Initialize the rainbow array to be the same size as the other arrays above. It will be set in the setup function and adjusted in the remaining program.
