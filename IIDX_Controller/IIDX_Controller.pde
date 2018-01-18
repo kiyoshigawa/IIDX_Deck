@@ -131,7 +131,7 @@ It is designed to run as a joystick, and as such this options must be selected a
 //rainbow_up - this increments the rainbow to the next rainbow in the array in a positive direction
 #define LM_RAINBOW_UP 9
 //number 17 will send the enter key press signal only when in lighting control mode
-#define LM_ENTER_KEY 17
+#define LM_ESC_KEY 17
 //number 18 will send windows-key+5, which should open the LR2 settings window. Then you can press key 17 to start LR2.
 #define LM_WIN_5_KEY 18
 
@@ -931,14 +931,14 @@ void lm_switch(){
           lm_has_changed = false;
         }
         break;
-      case LM_ENTER_KEY:
+      case LM_ESC_KEY:
         {
           #ifdef LIGHTING_DEBUG
             Serial.println("Sending enter key press");
           #endif
           //this mode just presses the enter key on the teensy's USB keyboard driver.
-          Keyboard.press(KEY_ENTER);
-          Keyboard.release(KEY_ENTER);
+          Keyboard.press(KEY_ESC);
+          Keyboard.release(KEY_ESC);
 
           //go back to the old lighting mode
           lighting_mode = previous_lighting_mode;
