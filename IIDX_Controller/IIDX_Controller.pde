@@ -496,6 +496,28 @@ void print_encoder_position(){
 
 //lighting functions below:
 
+//this is a general purpose function for mapping a color transition between two colors (uint32_t) based on a desired position, a starting position, and an ending position.
+uint32_t color_map(int x, int in_min, int in_max, uint32_t start_color, uint32_t end_color){
+  
+  //assign the colors based on the above.
+  uint32_t start_red = (uint8_t)(start_color >> 16);
+  uint32_t start_green = (uint8_t)(start_color >> 8);
+  uint32_t start_blue = (uint8_t)(start_color);
+  uint32_t end_red = (uint8_t)(end_color >> 16);
+  uint32_t end_green = (uint8_t)(end_color >> 8);
+  uint32_t end_blue = (uint8_t)(end_color);
+
+  //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
+  uint32_t mid_red = map(x, in_min, in_max, start_red, end_red);
+  uint32_t mid_green = map(x, in_min, in_max, start_green, end_green);
+  uint32_t mid_blue = map(x, in_min, in_max, start_blue, end_blue);
+
+  //finally assign the mid_color.
+  uint32_t mid_color = strip.Color(mid_red, mid_green, mid_blue);
+  return mid_color;
+}
+
+//this sets the lighting mode based on button presses, which is used by lm_switch and lighting_control
 void update_buttons_LM_select(){
   for(int i=0; i<NUM_BUTTONS; i++){
     //check for updates on each button
@@ -1010,19 +1032,10 @@ void lighting_control(){
           else{
             next_color = rainbow[lm_current_color+1];
           }
-          //assign the colors based on the above.
-          uint32_t current_red = (uint8_t)(current_color >> 16);
-          uint32_t current_green = (uint8_t)(current_color >> 8);
-          uint32_t current_blue = (uint8_t)(current_color);
-          uint32_t next_red = (uint8_t)(next_color >> 16);
-          uint32_t next_green = (uint8_t)(next_color >> 8);
-          uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-          uint32_t mid_red = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+          uint32_t mid_color = color_map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_color, next_color);
+
           //check to see if the mid color is 'off' and increment until it is no longer off.
-          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+          while(is_gc_color_off(mid_color)){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_transition_position++;
             if(lm_current_transition_position >= LM_SLOW_FADE_FRAMES){
@@ -1039,20 +1052,13 @@ void lighting_control(){
             else{
               next_color = rainbow[lm_current_color+1];
             }
-            current_red = (uint8_t)(current_color >> 16);
-            current_green = (uint8_t)(current_color >> 8);
-            current_blue = (uint8_t)(current_color);
-            next_red = (uint8_t)(next_color >> 16);
-            next_green = (uint8_t)(next_color >> 8);
-            next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_SLOW_FADE_FRAMES
-            mid_red = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_blue, next_blue);
+
+            //update the color again based on changed lm_current_transition_position.
+            mid_color = color_map(lm_current_transition_position, 0, LM_SLOW_FADE_FRAMES, current_color, next_color);
                         
           }
           //set the color:
-          LED_single_color(strip.Color(mid_red, mid_green, mid_blue), BOTH_WIKI);
+          LED_single_color(mid_color, BOTH_WIKI);
           #ifdef LIGHTING_DEBUG
             /* only uncomment if needed. Too spammy.
             Serial.print("Red: ");
@@ -1137,19 +1143,12 @@ void lighting_control(){
           else{
             next_color = rainbow[lm_current_color+1];
           }
-          //assign the colors based on the above.
-          uint32_t current_red = (uint8_t)(current_color >> 16);
-          uint32_t current_green = (uint8_t)(current_color >> 8);
-          uint32_t current_blue = (uint8_t)(current_color);
-          uint32_t next_red = (uint8_t)(next_color >> 16);
-          uint32_t next_green = (uint8_t)(next_color >> 8);
-          uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
-          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
+          
+          //map color to mid position.
+          uint32_t mid_color = color_map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_color, next_color);
+
           //check to see if the mid color is 'off' and increment until it is no longer off.
-          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+          while(is_gc_color_off(mid_color)){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_marquee_color_position++;
             if(lm_current_marquee_color_position >= LM_MARQUEE_FADE_FRAMES){
@@ -1166,21 +1165,12 @@ void lighting_control(){
             else{
               next_color = rainbow[lm_current_color+1];
             }
-            current_red = (uint8_t)(current_color >> 16);
-            current_green = (uint8_t)(current_color >> 8);
-            current_blue = (uint8_t)(current_color);
-            next_red = (uint8_t)(next_color >> 16);
-            next_green = (uint8_t)(next_color >> 8);
-            next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
-            mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
+            mid_color = color_map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_color, next_color);
                         
           }
 
           //set the marquee to the right color:
-          populate_marquee(strip.Color(mid_red, mid_green, mid_blue));
+          populate_marquee(mid_color);
 
           //set p1 directions - inverted due to hardware for p1
           if(direction_left == POSITIVE){
@@ -1263,19 +1253,12 @@ void lighting_control(){
           else{
             next_color = rainbow[lm_current_color+1];
           }
-          //assign the colors based on the above.
-          uint32_t current_red = (uint8_t)(current_color >> 16);
-          uint32_t current_green = (uint8_t)(current_color >> 8);
-          uint32_t current_blue = (uint8_t)(current_color);
-          uint32_t next_red = (uint8_t)(next_color >> 16);
-          uint32_t next_green = (uint8_t)(next_color >> 8);
-          uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
-          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
+
+          //map color to mid position.
+          uint32_t mid_color = color_map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_color, next_color);
+
           //check to see if the mid color is 'off' and increment until it is no longer off.
-          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+          while(is_gc_color_off(mid_color)){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_marquee_color_position++;
             if(lm_current_marquee_color_position >= LM_MARQUEE_FADE_FRAMES){
@@ -1292,21 +1275,13 @@ void lighting_control(){
             else{
               next_color = rainbow[lm_current_color+1];
             }
-            current_red = (uint8_t)(current_color >> 16);
-            current_green = (uint8_t)(current_color >> 8);
-            current_blue = (uint8_t)(current_color);
-            next_red = (uint8_t)(next_color >> 16);
-            next_green = (uint8_t)(next_color >> 8);
-            next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_MARQUEE_FADE_FRAMES
-            mid_red = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_blue, next_blue);
+
+            mid_color = color_map(lm_current_marquee_color_position, 0, LM_MARQUEE_FADE_FRAMES, current_color, next_color);
                         
           }
 
           //set the marquee to the right color:
-          populate_marquee(strip.Color(mid_red, mid_green, mid_blue));
+          populate_marquee(mid_color);
 
           //first map the wiki position to the frame offset of a typical slow rotate
           int p1_offset = map(position_left % PIPS_PER_REV, -PIPS_PER_REV, PIPS_PER_REV, LM_SLOW_ROTATE_FRAMES, -LM_SLOW_ROTATE_FRAMES);
@@ -1555,19 +1530,12 @@ void lighting_control(){
           else{
             next_color = rainbow[lm_current_color+1];
           }
-          //assign the colors based on the above.
-          uint32_t current_red = (uint8_t)(current_color >> 16);
-          uint32_t current_green = (uint8_t)(current_color >> 8);
-          uint32_t current_blue = (uint8_t)(current_color);
-          uint32_t next_red = (uint8_t)(next_color >> 16);
-          uint32_t next_green = (uint8_t)(next_color >> 8);
-          uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_COLOR_PULSE_FRAMES
-          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_blue, next_blue);
+
+          //map color to mid position.
+          uint32_t mid_color = color_map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_color, next_color);
+
           //check to see if the mid color is 'off' and increment until it is no longer off.
-          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+          while(is_gc_color_off(mid_color)){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_marquee_color_position++;
             if(lm_current_marquee_color_position >= LM_COLOR_PULSE_FRAMES){
@@ -1584,20 +1552,10 @@ void lighting_control(){
             else{
               next_color = rainbow[lm_current_color+1];
             }
-            current_red = (uint8_t)(current_color >> 16);
-            current_green = (uint8_t)(current_color >> 8);
-            current_blue = (uint8_t)(current_color);
-            next_red = (uint8_t)(next_color >> 16);
-            next_green = (uint8_t)(next_color >> 8);
-            next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_COLOR_PULSE_FRAMES
-            mid_red = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_blue, next_blue);                        
-          }
 
-          //take the above and make the current color a variable for use below:
-          uint32_t mid_color = strip.Color(mid_red, mid_green, mid_blue);
+            mid_color = color_map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_color, next_color);
+
+          }
 
           //check of wheels have changed direction to let the thing update one time.
           bool p1_wheel_has_changed = false;
@@ -1692,19 +1650,12 @@ void lighting_control(){
           else{
             next_color = rainbow[lm_current_color+1];
           }
-          //assign the colors based on the above.
-          uint32_t current_red = (uint8_t)(current_color >> 16);
-          uint32_t current_green = (uint8_t)(current_color >> 8);
-          uint32_t current_blue = (uint8_t)(current_color);
-          uint32_t next_red = (uint8_t)(next_color >> 16);
-          uint32_t next_green = (uint8_t)(next_color >> 8);
-          uint32_t next_blue = (uint8_t)(next_color);
-          //do the map thing to get the color between the two based on LM_COLOR_PULSE_FRAMES
-          uint32_t mid_red = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_red, next_red);
-          uint32_t mid_green = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_green, next_green);
-          uint32_t mid_blue = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_blue, next_blue);
+
+          //map color to mid position.
+          uint32_t mid_color = color_map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_color, next_color);
+
           //check to see if the mid color is 'off' and increment until it is no longer off.
-          while(is_gc_color_off(strip.Color(mid_red, mid_green, mid_blue))){
+          while(is_gc_color_off(mid_color)){
             //increment frames, jump to the next color if rollover occurs:
             lm_current_marquee_color_position++;
             if(lm_current_marquee_color_position >= LM_COLOR_PULSE_FRAMES){
@@ -1721,20 +1672,10 @@ void lighting_control(){
             else{
               next_color = rainbow[lm_current_color+1];
             }
-            current_red = (uint8_t)(current_color >> 16);
-            current_green = (uint8_t)(current_color >> 8);
-            current_blue = (uint8_t)(current_color);
-            next_red = (uint8_t)(next_color >> 16);
-            next_green = (uint8_t)(next_color >> 8);
-            next_blue = (uint8_t)(next_color);
-            //do the map thing to get the color between the two based on LM_COLOR_PULSE_FRAMES
-            mid_red = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_red, next_red);
-            mid_green = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_green, next_green);
-            mid_blue = map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_blue, next_blue);                        
-          }
+          
+            mid_color = color_map(lm_current_marquee_color_position, 0, LM_COLOR_PULSE_FRAMES, current_color, next_color);
 
-          //take the above and make the current color a variable for use below:
-          uint32_t mid_color = strip.Color(mid_red, mid_green, mid_blue);
+          }
 
           //check of wheels have changed direction to let the thing update one time.
           bool p1_wheel_has_changed = false;
@@ -1984,17 +1925,13 @@ void LED_rainbow(int offset, int wiki_select){
       current_color = double_rainbow[i];
       next_color = double_rainbow[0];
     }
-    //break out the RGB values from the 32 bit color for mapping purposes.
-    uint8_t current_red = (uint8_t)(current_color >> 16);
-    uint8_t current_green = (uint8_t)(current_color >> 8);
-    uint8_t current_blue = (uint8_t)(current_color);
-    uint8_t next_red = (uint8_t)(next_color >> 16);
-    uint8_t next_green = (uint8_t)(next_color >> 8);
-    uint8_t next_blue = (uint8_t)(next_color);
     
     //set the current and next color positions. If either is greater than LM_SLOW_ROTATE_FRAMES, it will need to be fixed before setting a color.
     int current_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset);
     int next_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset) + pure_color_offset;
+
+    //initialize for use below:
+    uint32_t mid_color = 0;
 
     //iterate through all LEDs and see which LEDs are between the color positions.
     for(int led = 0; led < NUM_LEDS; led++){
@@ -2005,19 +1942,16 @@ void LED_rainbow(int offset, int wiki_select){
         if(led >= (NUM_LEDS/2)){
           corrected_led = led - (NUM_LEDS/2);
         }
-        //set the colors once the positions are corrected as needed.
-        uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
-        uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
-        uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
+        mid_color = color_map(led_position_array[led], current_color_position, next_color_position, current_color, next_color);
         if(wiki_select == BOTH_WIKI){
-          strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
-          strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led, mid_color);
+          strip_setPixelColor(corrected_led+(NUM_LEDS/2), mid_color);
         }
         else if(wiki_select == P1_WIKI){
-          strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led, mid_color);
         }
         else if(wiki_select == P2_WIKI){
-          strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+          strip_setPixelColor(corrected_led+(NUM_LEDS/2), mid_color);
         }
         else{
           #ifdef LIGHTING_DEBUG
@@ -2098,17 +2032,13 @@ void LED_marquee(int offset, int wiki_select){
       current_color = double_marquee[i];
       next_color = double_marquee[0];
     }
-    //break out the RGB values from the 32 bit color for mapping purposes.
-    uint8_t current_red = (uint8_t)(current_color >> 16);
-    uint8_t current_green = (uint8_t)(current_color >> 8);
-    uint8_t current_blue = (uint8_t)(current_color);
-    uint8_t next_red = (uint8_t)(next_color >> 16);
-    uint8_t next_green = (uint8_t)(next_color >> 8);
-    uint8_t next_blue = (uint8_t)(next_color);
-    
+
     //set the current and next color positions. If either is greater than LM_SLOW_ROTATE_FRAMES, it will need to be fixed before setting a color.
     int current_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset);
     int next_color_position = offset*LM_SLOW_ROTATE_SCALING_FACTOR + (i*pure_color_offset) + pure_color_offset;
+
+    //init for use below:
+    uint32_t mid_color = 0;
 
     //iterate through all LEDs and see which LEDs are between the color positions.
     for(int led = 0; led < NUM_LEDS; led++){
@@ -2122,18 +2052,16 @@ void LED_marquee(int offset, int wiki_select){
         //set the colors once the positions are corrected only on the LM_MARQUEE_FRAMESth frame
         //using lm_current_transition_position instead of offset in the modulus if statement to get both wheels to move at the same time.
         if((lm_current_transition_position%LM_MARQUEE_FRAMES) == 0 || lighting_mode == LM_WIKI || lighting_mode == LM_WIKI_SLOW_FADE){
-          uint32_t mid_red = map(led_position_array[led], current_color_position, next_color_position, current_red, next_red);
-          uint32_t mid_green = map(led_position_array[led], current_color_position, next_color_position, current_green, next_green);
-          uint32_t mid_blue = map(led_position_array[led], current_color_position, next_color_position, current_blue, next_blue);
+          mid_color = color_map(led_position_array[led], current_color_position, next_color_position, current_color, next_color);
           if(wiki_select == BOTH_WIKI){
-            strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
-            strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led, mid_color);
+            strip_setPixelColor(corrected_led+(NUM_LEDS/2), mid_color);
           }
           else if(wiki_select == P1_WIKI){
-            strip_setPixelColor(corrected_led, strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led, mid_color);
           }
           else if(wiki_select == P2_WIKI){
-            strip_setPixelColor(corrected_led+(NUM_LEDS/2), strip.Color(mid_red, mid_green, mid_blue));
+            strip_setPixelColor(corrected_led+(NUM_LEDS/2), mid_color);
           }
           else{
             #ifdef LIGHTING_DEBUG
@@ -2342,24 +2270,14 @@ void LED_color_pulse_refresh(uint32_t current_color){
       current_color_p2 = p2_colors[i];
       next_color_p2 = p2_colors[0];
     }
-
-    //break out the RGB values from the 32 bit color for mapping purposes.
-    uint8_t current_red_p1 = (uint8_t)(current_color_p1 >> 16);
-    uint8_t current_green_p1 = (uint8_t)(current_color_p1 >> 8);
-    uint8_t current_blue_p1 = (uint8_t)(current_color_p1);
-    uint8_t next_red_p1 = (uint8_t)(next_color_p1 >> 16);
-    uint8_t next_green_p1 = (uint8_t)(next_color_p1 >> 8);
-    uint8_t next_blue_p1 = (uint8_t)(next_color_p1);
-    uint8_t current_red_p2 = (uint8_t)(current_color_p2 >> 16);
-    uint8_t current_green_p2 = (uint8_t)(current_color_p2 >> 8);
-    uint8_t current_blue_p2 = (uint8_t)(current_color_p2);
-    uint8_t next_red_p2 = (uint8_t)(next_color_p2 >> 16);
-    uint8_t next_green_p2 = (uint8_t)(next_color_p2 >> 8);
-    uint8_t next_blue_p2 = (uint8_t)(next_color_p2);
     
     //set the current and next color positions. If either is greater than LM_COLOR_PULSE_FRAMES, it will need to be fixed before setting a color.
     int current_color_position = i*pure_color_offset;
     int next_color_position = i*pure_color_offset + pure_color_offset;
+
+    //init for use below:
+    uint32_t mid_color_p1 = 0;
+    uint32_t mid_color_p2 = 0;
 
     //iterate through all LEDs and see which LEDs are between the color positions.
     for(int led = 0; led < NUM_LEDS/2; led++){
@@ -2368,20 +2286,16 @@ void LED_color_pulse_refresh(uint32_t current_color){
         //Should only activate if the LED position is between the current and next LED.
         
         //set the colors once the positions are corrected as needed.
-        uint32_t mid_red_p1 = map(led_position_array[led], current_color_position, next_color_position, current_red_p1, next_red_p1);
-        uint32_t mid_green_p1 = map(led_position_array[led], current_color_position, next_color_position, current_green_p1, next_green_p1);
-        uint32_t mid_blue_p1 = map(led_position_array[led], current_color_position, next_color_position, current_blue_p1, next_blue_p1);
-        strip_setPixelColor(led, strip.Color(mid_red_p1, mid_green_p1, mid_blue_p1));
+        mid_color_p1 = color_map(led_position_array[led], current_color_position, next_color_position, current_color_p1, next_color_p1);
+        strip_setPixelColor(led, mid_color_p1);
       }
       //the p2 if pile
       if(led_position_array[led] >= current_color_position && led_position_array[led] < next_color_position){
         //Should only activate if the LED position is between the current and next LED.
         
         //set the colors once the positions are corrected as needed.
-        uint32_t mid_red_p2 = map(led_position_array[led], current_color_position, next_color_position, current_red_p2, next_red_p2);
-        uint32_t mid_green_p2 = map(led_position_array[led], current_color_position, next_color_position, current_green_p2, next_green_p2);
-        uint32_t mid_blue_p2 = map(led_position_array[led], current_color_position, next_color_position, current_blue_p2, next_blue_p2);
-        strip_setPixelColor(led+NUM_LEDS/2-1, strip.Color(mid_red_p2, mid_green_p2, mid_blue_p2));
+        mid_color_p2 = color_map(led_position_array[led], current_color_position, next_color_position, current_color_p2, next_color_p2);
+        strip_setPixelColor(led+NUM_LEDS/2-1, mid_color_p2);
       }
     }
   }
